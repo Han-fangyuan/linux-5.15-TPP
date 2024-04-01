@@ -1,0 +1,101 @@
+Subject: [PATCH 0/5] Transparent Page Placement for Tiered-Memory
+From: Hasan Al Maruf <hasan3050@gmail.com>
+Date: Wed, 24 Nov 2021 13:58:25 -0500
+Message-Id: <cover.1637778851.git.hasanalmaruf@fb.com>
+To: dave.hansen@linux.intel.com, ying.huang@intel.com, yang.shi@linux.alibaba.com, mgorman@techsingularity.net, riel@surriel.com, hannes@cmpxchg.org
+Cc: linux-mm@kvack.org, linux-kernel@vger.kernel.org
+List-Id: <linux-kernel.vger.kernel.org>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+[resend in proper format]
+
+With the advent of new memory types and technologies, we can see different
+types of memory together, e.g. DRAM, PMEM, CXL-enabled memory, etc. In
+recent future, we can see CXL-Memory be available in the physical address-
+space as a CPU-less NUMA node along with the native DDR memory channels.
+As different types of memory have different level of performance impact,
+how we manage pages across the NUMA nodes should be a matter of concern.
+
+Dave Hansen's patchset on "Migrate Pages in lieu of discard" demotes
+toptier pages to a slow tier node during the reclamation process.
+
+    		https://lwn.net/Articles/860215/
+
+However, that patchset does not include the features to promote pages on
+slow tier memory node to the toptier one. As a result, pages demoted or
+newly allocated on the slow tier node, experiences NUMA latency and hurt
+application performance. In this patch set, we augment existing AutoNUMA
+mechanism to promote pages from slow tier nodes to toptier nodes.
+
+We decouple reclamation and allocation logics for the toptier node so that
+reclamation gets triggered at a higher watermark and demotes colder pages
+to the slow-tier memory. As a result, toptier nodes can maintain some free
+space to accept both new allocation and promotion from slowtier nodes.
+During promotion, we add hysteresis to page and only promote pages that
+are less likely to be demoted within a short period of time. This reduces
+the chance for a page being ping-ponged across the NUMA nodes due to
+frequent demotion and promotion within a short period of time.
+
+We tested this patchset on systems with CXL-enabled DRAM and PMEM tiers.
+We find this patchset can bring hotter pages to the toptier node while
+moving the colder pages to the slow-tier nodes for a good range of Meta
+production workloads with live traffic. As a result, toptier nodes serve
+more hot pages and the application performance improves.
+
+Case Study of a Meta cache application with two NUMA nodes
+==========================================================
+Toptier node: DRAM directly attached to the CPU
+Slowtier node: DRAM attached through CXL
+
+Toptier vs Slowtier memory capacity ratio is 1:4
+
+With default page placement policy, file caches fills up the toptier node
+and anons get trapped in the slowtier node. Only 14% of the total anons
+reside in toptier node. Remote NUMA read bandwidth is 80%. Throughput
+regression is 18% compared to all memory being served from toptier node.
+
+This patchset brings 80% of the anons to the toptier node. Anons on the
+slowtier memory is mostly cold anons. As the toptier node can not host all
+the hot memory, some hot files still remain on the slowtier node. Even
+though, remote NUMA read bandwidth reduces from 80% to 40%. With this
+patchset, throughput regression is only 5% compared to the baseline of
+toptier node serving the whole working set.
+
+Hasan Al Maruf (5):
+  Promotion and demotion related statistics
+  NUMA balancing for tiered-memory system
+  Decouple reclaim and allocation for toptier nodes
+  Reclaim to satisfy WMARK_DEMOTE on toptier nodes
+  active LRU-based promotion to avoid ping-pong
+
+ Documentation/admin-guide/sysctl/kernel.rst | 18 +++++
+ Documentation/admin-guide/sysctl/vm.rst     | 12 ++++
+ include/linux/mempolicy.h                   | 11 ++-
+ include/linux/mm.h                          |  4 ++
+ include/linux/mmzone.h                      |  5 ++
+ include/linux/node.h                        |  7 ++
+ include/linux/page-flags.h                  |  9 +++
+ include/linux/page_ext.h                    |  3 +
+ include/linux/sched/numa_balancing.h        | 63 ++++++++++++++++-
+ include/linux/sched/sysctl.h                |  6 ++
+ include/linux/vm_event_item.h               | 13 ++++
+ include/trace/events/mmflags.h              | 10 ++-
+ kernel/sched/core.c                         | 36 ++++++++--
+ kernel/sched/fair.c                         | 23 ++++++-
+ kernel/sched/sched.h                        |  2 +
+ kernel/sysctl.c                             | 19 ++++--
+ mm/huge_memory.c                            | 29 +++++---
+ mm/memory.c                                 | 15 +++-
+ mm/mempolicy.c                              | 30 +++++++-
+ mm/migrate.c                                | 48 ++++++++++---
+ mm/mprotect.c                               |  8 ++-
+ mm/page_alloc.c                             | 34 ++++++++-
+ mm/vmscan.c                                 | 76 +++++++++++++++++++--
+ mm/vmstat.c                                 | 20 +++++-
+ 24 files changed, 451 insertions(+), 50 deletions(-)
+
+--
+2.30.2
+

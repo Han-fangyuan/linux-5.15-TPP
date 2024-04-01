@@ -1,0 +1,9 @@
+--- include/linux/mempolicy.h
++++ include/linux/mempolicy.h
+@@ -300,5 +301,6 @@ static inline nodemask_t *policy_nodemask_current(gfp_t gfp)
+ }
+ 
+ #define numa_demotion_enabled	false
++#define numa_promotion_tiered_enabled	false
+ #endif /* CONFIG_NUMA */
+ #endif

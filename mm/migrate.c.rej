@@ -1,0 +1,71 @@
+--- mm/migrate.c
++++ mm/migrate.c
+@@ -2159,8 +2177,10 @@ static int numamigrate_isolate_page(pg_data_t *pgdat, struct page *page)
+ 	VM_BUG_ON_PAGE(compound_order(page) && !PageTransHuge(page), page);
+ 
+ 	/* Avoid migrating to a node that is nearly full */
+-	if (!migrate_balanced_pgdat(pgdat, compound_nr(page)))
++	if (!migrate_balanced_pgdat(pgdat, compound_nr(page))) {
++		count_vm_events(PGMIGRATE_DST_NODE_FULL_FAIL, thp_nr_pages(page));
+ 		return 0;
++	}
+ 
+ 	if (isolate_lru_page(page))
+ 		return 0;
+@@ -2228,18 +2249,15 @@ int migrate_misplaced_page(struct page *page, struct vm_area_struct *vma,
+ 	if (is_shared_exec_page(vma, page))
+ 		goto out;
+ 
+-	/*
+-	 * Also do not migrate dirty pages as not all filesystems can move
+-	 * dirty pages in MIGRATE_ASYNC mode which is a waste of cycles.
+-	 */
+-	if (page_is_file_lru(page) && PageDirty(page))
+-		goto out;
+-
+ 	isolated = numamigrate_isolate_page(pgdat, page);
+-	if (!isolated)
++	if (!isolated) {
++		count_vm_events(PGMIGRATE_NUMA_ISOLATE_FAIL, thp_nr_pages(page));
+ 		goto out;
++	}
+ 
++	is_file = page_is_file_lru(page);
+ 	list_add(&page->lru, &migratepages);
++	count_vm_numa_event(PGPROMOTE_TRIED);
+ 	nr_remaining = migrate_pages(&migratepages, alloc_misplaced_dst_page,
+ 				     NULL, node, MIGRATE_ASYNC,
+ 				     MR_NUMA_MISPLACED, NULL);
+@@ -2251,8 +2269,13 @@ int migrate_misplaced_page(struct page *page, struct vm_area_struct *vma,
+ 			putback_lru_page(page);
+ 		}
+ 		isolated = 0;
+-	} else
++	} else {
+ 		count_vm_numa_event(NUMA_PAGE_MIGRATE);
++		if (is_file)
++			count_vm_numa_event(PGPROMOTE_FILE);
++		else
++			count_vm_numa_event(PGPROMOTE_ANON);
++	}
+ 	BUG_ON(!list_empty(&migratepages));
+ 	return isolated;
+ 
+@@ -2286,13 +2309,16 @@ int migrate_misplaced_transhuge_page(struct mm_struct *mm,
+ 	new_page = alloc_pages_node(node,
+ 		(GFP_TRANSHUGE_LIGHT | __GFP_THISNODE),
+ 		HPAGE_PMD_ORDER);
+-	if (!new_page)
++	if (!new_page) {
++		count_vm_events(PGMIGRATE_NOMEM_FAIL, HPAGE_PMD_NR);
+ 		goto out_fail;
++	}
+ 	prep_transhuge_page(new_page);
+ 
+ 	isolated = numamigrate_isolate_page(pgdat, page);
+ 	if (!isolated) {
+ 		put_page(new_page);
++		count_vm_events(PGMIGRATE_NUMA_ISOLATE_FAIL, HPAGE_PMD_NR);
+ 		goto out_fail;
+ 	}
+ 
