@@ -9,6 +9,21 @@
  *  Zone aware kswapd started 02/00, Kanoj Sarcar (kanoj@sgi.com).
  *  Multiqueue VM started 5.8.00, Rik van Riel.
  */
+/*
+TPP补丁1修改函数
+1. demote_page_list
+
+TPP补丁3修改函数
+1.set_task_reclaim_state
+2.pgdat_balanced
+
+TPP补丁4修改
+1.get_scan_count函数
+2.shrink_node
+3.pgdat_balanced
+4.kswapd_shrink_node
+5.kswapd_try_to_sleep
+*/
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
@@ -63,27 +78,14 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/vmscan.h>
 
+
 struct scan_control {
-	/* How many pages shrink_list() should reclaim */
-	unsigned long nr_to_reclaim;
 
-	/*
-	 * Nodemask of nodes allowed by the caller. If NULL, all nodes
-	 * are scanned.
-	 */
-	nodemask_t	*nodemask;
-
-	/*
-	 * The memory cgroup that hit its limit and as a result is the
-	 * primary target of this reclaim invocation.
-	 */
-	struct mem_cgroup *target_mem_cgroup;
-
-	/*
-	 * Scan pressure balancing between anon and file LRUs
-	 */
+	unsigned long nr_to_reclaim;//shrink_list函数应该回收的页面数
+	nodemask_t	*nodemask;//允许扫描的nodemask
+	struct mem_cgroup *target_mem_cgroup;//触及其限制的内存控制组，因此是此次回收调用的主要目标。
 	unsigned long	anon_cost;
-	unsigned long	file_cost;
+	unsigned long	file_cost;//平衡匿名和文件页面LRU的扫描压力
 
 	/* Can active pages be deactivated as part of reclaim? */
 #define DEACTIVATE_ANON 1
@@ -95,12 +97,12 @@ struct scan_control {
 	/* Writepage batching in laptop mode; RECLAIM_WRITE */
 	unsigned int may_writepage:1;
 
-	/* Can mapped pages be reclaimed? */
-	unsigned int may_unmap:1;
+	unsigned int may_unmap:1;//mapped页面可以被回收？
 
 	/* Can pages be swapped as part of reclaim? */
-	unsigned int may_swap:1;
+	unsigned int may_swap:1;//在回收过程中交换页面？
 
+	//内存保护和策略
 	/*
 	 * Cgroup memory below memory.low is protected as long as we
 	 * don't threaten to OOM. If any cgroup is reclaimed at
@@ -126,23 +128,15 @@ struct scan_control {
 	/* Always discard instead of demoting to lower tier memory */
 	unsigned int no_demotion:1;
 
-	/* Allocation order */
-	s8 order;
+	//分配和扫描控制
+	s8 order;//分配顺序
+	s8 priority;//扫描的优先级，决定了一次扫描多少页面（基于总大小右移priority位），Scan (total_size >> priority) pages at once
+	s8 reclaim_idx;/* The highest zone to isolate pages for reclaim from */
+	gfp_t gfp_mask;/* This context's GFP mask */
 
-	/* Scan (total_size >> priority) pages at once */
-	s8 priority;
-
-	/* The highest zone to isolate pages for reclaim from */
-	s8 reclaim_idx;
-
-	/* This context's GFP mask */
-	gfp_t gfp_mask;
-
-	/* Incremented by the number of inactive pages that were scanned */
-	unsigned long nr_scanned;
-
-	/* Number of pages freed so far during a call to shrink_zones() */
-	unsigned long nr_reclaimed;
+	//统计信息
+	unsigned long nr_scanned;//扫描的inactive页面数
+	unsigned long nr_reclaimed;// shrink_zones()期间回收的页面数
 
 	struct {
 		unsigned int dirty;
@@ -154,8 +148,8 @@ struct scan_control {
 		unsigned int taken;
 	} nr;
 
-	/* for recording the reclaimed slab by now */
-	struct reclaim_state reclaim_state;
+	//回收状态
+	struct reclaim_state reclaim_state;/* for recording the reclaimed slab by now */
 };
 
 #ifdef ARCH_HAS_PREFETCHW
@@ -524,6 +518,7 @@ static long add_nr_deferred(long nr, struct shrinker *shrinker,
 	return atomic_long_add_return(nr, &shrinker->nr_deferred[nid]);
 }
 
+
 static bool can_demote(int nid, struct scan_control *sc)
 {
 	if (!numa_demotion_enabled)
@@ -531,8 +526,7 @@ static bool can_demote(int nid, struct scan_control *sc)
 	if (sc) {
 		if (sc->no_demotion)
 			return false;
-		/* It is pointless to do demotion in memcg reclaim */
-		if (cgroup_reclaim(sc))
+		if (cgroup_reclaim(sc))//是否是在内存控制组的内存回收，如果是降级没有意义。
 			return false;
 	}
 	if (next_demotion_node(nid) == NUMA_NO_NODE)
@@ -541,28 +535,21 @@ static bool can_demote(int nid, struct scan_control *sc)
 	return true;
 }
 
-static inline bool can_reclaim_anon_pages(struct mem_cgroup *memcg,
-					  int nid,
-					  struct scan_control *sc)
+//can_reclaim_anon_pages(memcg, pgdat->node_id, sc)
+static inline bool can_reclaim_anon_pages(struct mem_cgroup *memcg, int nid, struct scan_control *sc)
 {
+	//不是内存控制组回收，检查系统是否有可用的交换空间
 	if (memcg == NULL) {
-		/*
-		 * For non-memcg reclaim, is there
-		 * space in any swap device?
-		 */
 		if (get_nr_swap_pages() > 0)
 			return true;
-	} else {
-		/* Is the memcg below its swap limit? */
+	}
+	//是内存控制组，针对特定的内存控制组，检查该控制组的swap空间使用情况
+	else {
+		
 		if (mem_cgroup_get_nr_swap_pages(memcg) > 0)
 			return true;
 	}
-
-	/*
-	 * The page can not be swapped.
-	 *
-	 * Can it be reclaimed from this node via demotion?
-	 */
+	//页面不能被交换，是否可以被demotion：为什么是先考虑交换，再考虑demotion到别的节点？
 	return can_demote(nid, sc);
 }
 
@@ -610,9 +597,8 @@ static unsigned long lruvec_lru_size(struct lruvec *lruvec, enum lru_list lru,
 	return size;
 }
 
-/*
- * Add a shrinker callback to be called from the vm.
- */
+
+//Add a shrinker callback to be called from the vm.
 int prealloc_shrinker(struct shrinker *shrinker)
 {
 	unsigned int size;
@@ -669,9 +655,9 @@ int register_shrinker(struct shrinker *shrinker)
 }
 EXPORT_SYMBOL(register_shrinker);
 
-/*
- * Remove one
- */
+
+//Remove one
+
 void unregister_shrinker(struct shrinker *shrinker)
 {
 	if (!(shrinker->flags & SHRINKER_REGISTERED))
@@ -2594,52 +2580,43 @@ static void get_scan_count(struct lruvec *lruvec, struct scan_control *sc,
 	unsigned long ap, fp;
 	enum lru_list lru;
 
-	/*
-	 * If we have no swap space, do not bother scanning anon pages.
+	// If we have no swap space, do not bother scanning anon pages.
+	/* If we have no swap space, do not bother scanning anon pages.
 	 * However, anon pages on toptier node can be demoted via reclaim
 	 * when numa promotion is enabled. Disable the check to prevent
-	 * demotion for no swap space when numa promotion is enabled.
-	 */
-	if (!numa_promotion_tiered_enabled &&
-		(!sc->may_swap || !can_reclaim_anon_pages(memcg, pgdat->node_id, sc))) {
+	 * demotion for no swap space when numa promotion is enabled. */
+	//if (!sc->may_swap || !can_reclaim_anon_pages(memcg, pgdat->node_id, sc)) {
+	if (!numa_promotion_tiered_enabled &&(!sc->may_swap || !can_reclaim_anon_pages(memcg, pgdat->node_id, sc))) {
 		scan_balance = SCAN_FILE;
 		goto out;
 	}
 
-	/*
-	 * Global reclaim will swap to prevent OOM even with no
+	/* Global reclaim will swap to prevent OOM even with no
 	 * swappiness, but memcg users want to use this knob to
 	 * disable swapping for individual groups completely when
 	 * using the memory controller's swap limit feature would be
-	 * too expensive.
-	 */
+	 * too expensive.*/
 	if (cgroup_reclaim(sc) && !swappiness) {
 		scan_balance = SCAN_FILE;
 		goto out;
 	}
 
-	/*
-	 * Do not apply any pressure balancing cleverness when the
+	/* Do not apply any pressure balancing cleverness when the
 	 * system is close to OOM, scan both anon and file equally
-	 * (unless the swappiness setting disagrees with swapping).
-	 */
+	 * (unless the swappiness setting disagrees with swapping). */
 	if (!sc->priority && swappiness) {
 		scan_balance = SCAN_EQUAL;
 		goto out;
 	}
 
-	/*
-	 * If the system is almost out of file pages, force-scan anon.
-	 */
+	//If the system is almost out of file pages, force-scan anon.
 	if (sc->file_is_tiny) {
 		scan_balance = SCAN_ANON;
 		goto out;
 	}
 
-	/*
-	 * If there is enough inactive page cache, we do not reclaim
-	 * anything from the anonymous working right now.
-	 */
+	/* If there is enough inactive page cache, we do not reclaim
+	 * anything from the anonymous working right now.*/
 	if (sc->cache_trim_mode) {
 		scan_balance = SCAN_FILE;
 		goto out;
@@ -3042,6 +3019,7 @@ static void shrink_node_memcgs(pg_data_t *pgdat, struct scan_control *sc)
 	} while ((memcg = mem_cgroup_iter(target_memcg, memcg, NULL)));
 }
 
+//TPP修改函数
 static void shrink_node(pg_data_t *pgdat, struct scan_control *sc)
 {
 	struct reclaim_state *reclaim_state = current->reclaim_state;
@@ -3053,8 +3031,7 @@ static void shrink_node(pg_data_t *pgdat, struct scan_control *sc)
 	target_lruvec = mem_cgroup_lruvec(sc->target_mem_cgroup, pgdat);
 
 again:
-	/*
-	 * Flush the memory cgroup stats, so that we read accurate per-memcg
+	/* Flush the memory cgroup stats, so that we read accurate per-memcg
 	 * lruvec stats for heuristics.
 	 */
 	mem_cgroup_flush_stats();
@@ -3064,18 +3041,15 @@ again:
 	nr_reclaimed = sc->nr_reclaimed;
 	nr_scanned = sc->nr_scanned;
 
-	/*
-	 * Determine the scan balance between anon and file LRUs.
-	 */
+
+	// Determine the scan balance between anon and file LRUs.
 	spin_lock_irq(&target_lruvec->lru_lock);
 	sc->anon_cost = target_lruvec->anon_cost;
 	sc->file_cost = target_lruvec->file_cost;
 	spin_unlock_irq(&target_lruvec->lru_lock);
 
-	/*
-	 * Target desirable inactive:active list ratios for the anon
-	 * and file LRU lists.
-	 */
+	/* Target desirable inactive:active list ratios for the anon
+	 * and file LRU lists.*/
 	if (!sc->force_deactivate) {
 		unsigned long refaults;
 
@@ -3102,17 +3076,19 @@ again:
 	} else
 		sc->may_deactivate = DEACTIVATE_ANON | DEACTIVATE_FILE;
 
-	/*
-	 * If we have plenty of inactive file pages that aren't
+	/* If we have plenty of inactive file pages that aren't
 	 * thrashing, try to reclaim those first before touching
-	 * anonymous pages.
-	 */
+	 * anonymous pages. */
 	file = lruvec_page_state(target_lruvec, NR_INACTIVE_FILE);
 	if (file >> sc->priority && !(sc->may_deactivate & DEACTIVATE_FILE))
 		sc->cache_trim_mode = 1;
 	else
 		sc->cache_trim_mode = 0;
 
+	//防止回收器掉入cache trap中：因为cache pages开始inactive，每个cache fault会使scan balance倾向于file LRU
+	//随着文件LRU shrink，the window for rotation from references也shrink
+	//这意味着我们有一个失控的反馈循环，其中微小的激烈换页的文件LRU变得比匿名页面无限更有吸引力。
+	//尝试基于文件LRU的大小来检测这一点。
 	/*
 	 * Prevent the reclaimer from falling into the cache trap: as
 	 * cache pages start out inactive, every cache fault will tip
@@ -3135,7 +3111,8 @@ again:
 			struct zone *zone = &pgdat->node_zones[z];
 			if (!managed_zone(zone))
 				continue;
-
+			//TPP修改：减少total_high_wmark += high_wmark_pages(zone);
+			//下面4行都是添加的
 			if (numa_promotion_tiered_enabled && node_is_toptier(pgdat->node_id))
 				total_high_wmark += demote_wmark_pages(zone);
 			else
@@ -3155,7 +3132,7 @@ again:
 			anon >> sc->priority;
 	}
 
-	shrink_node_memcgs(pgdat, sc);
+	shrink_node_memcgs(pgdat, sc);//核心函数1
 
 	if (reclaim_state) {
 		sc->nr_reclaimed += reclaim_state->reclaimed_slab;
@@ -3783,23 +3760,25 @@ static bool pgdat_watermark_boosted(pg_data_t *pgdat, int highest_zoneidx)
 	return false;
 }
 
-/*
- * Returns true if there is an eligible zone balanced for the request order
- * and highest_zoneidx
- */
+/* Returns true if there is an eligible zone balanced for the request order
+ * and highest_zoneidx */
+//判断一个numa节点，是否对于特定请求大小和最高区域索引是平衡的
+//如果节点至少有一个内存区域zone的可用内存满足特定的水位标记要求，则认为这个node是平衡的
+//order请求页面的阶数，页面大小以2的指数方式增加
 static bool pgdat_balanced(pg_data_t *pgdat, int order, int highest_zoneidx)
 {
 	int i;
 	unsigned long mark = -1;
 	struct zone *zone;
 
+	//TPP修改，下面3行都是添加的
+	//启用了numa提升分层策略&当前节点是一个顶层节点&请求区域索引在normal或更高
+	//则调用函数判断是否平衡
 	if (numa_promotion_tiered_enabled && node_is_toptier(pgdat->node_id) &&
 			highest_zoneidx >= ZONE_NORMAL)
 		return pgdat_toptier_balanced(pgdat, 0, highest_zoneidx);
-	/*
-	 * Check watermarks bottom-up as lower zones are more likely to
-	 * meet watermarks.
-	 */
+	/* Check watermarks bottom-up as lower zones are more likely to
+	 * meet watermarks. */
 	for (i = 0; i <= highest_zoneidx; i++) {
 		zone = pgdat->node_zones + i;
 
@@ -3811,11 +3790,9 @@ static bool pgdat_balanced(pg_data_t *pgdat, int order, int highest_zoneidx)
 			return true;
 	}
 
-	/*
-	 * If a node has no populated zone within highest_zoneidx, it does not
+	/* If a node has no populated zone within highest_zoneidx, it does not
 	 * need balancing by definition. This can happen if a zone-restricted
-	 * allocation tries to wake a remote kswapd.
-	 */
+	 * allocation tries to wake a remote kswapd.*/
 	if (mark == -1)
 		return true;
 

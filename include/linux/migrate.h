@@ -175,7 +175,6 @@ void migrate_vma_finalize(struct migrate_vma *migrate);
 int next_demotion_node(int node);
 
 #else /* CONFIG_MIGRATION disabled: */
-
 static inline int next_demotion_node(int node)
 {
 	return NUMA_NO_NODE;

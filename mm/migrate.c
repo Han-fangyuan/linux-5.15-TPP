@@ -13,6 +13,9 @@
  * Christoph Lameter
  */
 
+
+
+
 #include <linux/migrate.h>
 #include <linux/export.h>
 #include <linux/swap.h>
@@ -1116,7 +1119,7 @@ out:
 
 /*
  * node_demotion[] example:
- *
+ 
  * Consider a system with two sockets.  Each socket has
  * three classes of memory attached: fast, medium and slow.
  * Each memory class is placed in its own NUMA node.  The
@@ -1147,14 +1150,8 @@ out:
  *	  -1} // Node 5 does not migrate
  */
 
-/*
- * Writes to this array occur without locking.  Cycles are
- * not allowed: Node X demotes to Y which demotes to X...
- *
- * If multiple reads are performed, a single rcu_read_lock()
- * must be held over all reads to ensure that no cycles are
- * observed.
- */
+//对这个数组写操作不加锁。不允许循环出现，节点X降级到Y，节点Y降级到X
+//多次执行读操作，必须持有单个rcu_read_lock()覆盖所有读取以确保不观察到任何循环
 static int node_demotion[MAX_NUMNODES] __read_mostly =
 	{[0 ...  MAX_NUMNODES - 1] = NUMA_NO_NODE};
 
@@ -1167,25 +1164,20 @@ static int node_demotion[MAX_NUMNODES] __read_mostly =
  * @node online or guarantee that it *continues* to be the next demotion
  * target.
  */
+
 int next_demotion_node(int node)
 {
 	int target;
-
-	/*
-	 * node_demotion[] is updated without excluding this
-	 * function from running.  RCU doesn't provide any
-	 * compiler barriers, so the READ_ONCE() is required
-	 * to avoid compiler reordering or read merging.
-	 *
-	 * Make sure to use RCU over entire code blocks if
-	 * node_demotion[] reads need to be consistent.
-	 */
+	//node_demotion[]在更新时不会组织这个函数的运行
+	//RCU不提供任何compiler barriers，因此需要使用READ_ONCE()来避免编译器重排序和读合并
+	//如果需要 node_demotion[] 读取的一致性，请确保在整个代码块上使用RCU。
 	rcu_read_lock();
 	target = READ_ONCE(node_demotion[node]);
 	rcu_read_unlock();
 
 	return target;
 }
+
 
 /*
  * Obtain the lock on page, remove all ptes and migrate the page
