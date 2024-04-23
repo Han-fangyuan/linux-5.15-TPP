@@ -4187,6 +4187,7 @@ static enum zone_type kswapd_highest_zoneidx(pg_data_t *pgdat,
 	return curr_idx == MAX_NR_ZONES ? prev_highest_zoneidx : curr_idx;
 }
 
+//
 static void kswapd_try_to_sleep(pg_data_t *pgdat, int alloc_order, int reclaim_order,
 				unsigned int highest_zoneidx)
 {
@@ -4196,6 +4197,7 @@ static void kswapd_try_to_sleep(pg_data_t *pgdat, int alloc_order, int reclaim_o
 	if (freezing(current) || kthread_should_stop())
 		return;
 
+	//
 	prepare_to_wait(&pgdat->kswapd_wait, &wait, TASK_INTERRUPTIBLE);
 
 	/*
@@ -4205,6 +4207,7 @@ static void kswapd_try_to_sleep(pg_data_t *pgdat, int alloc_order, int reclaim_o
 	 * eligible zone balanced that it's also unlikely that compaction will
 	 * succeed.
 	 */
+	//判断kswapd是否可以睡眠
 	if (prepare_kswapd_sleep(pgdat, reclaim_order, highest_zoneidx)) {
 		/*
 		 * Compaction records what page blocks it recently failed to
@@ -4218,8 +4221,9 @@ static void kswapd_try_to_sleep(pg_data_t *pgdat, int alloc_order, int reclaim_o
 		 * We have freed the memory, now we should compact it to make
 		 * allocation of the requested order possible.
 		 */
+		//
 		wakeup_kcompactd(pgdat, alloc_order, highest_zoneidx);
-
+		//kswapd尝试睡眠0.1s，等待唤醒或者超市
 		remaining = schedule_timeout(HZ/10);
 
 		/*
@@ -4228,14 +4232,12 @@ static void kswapd_try_to_sleep(pg_data_t *pgdat, int alloc_order, int reclaim_o
 		 * the previous request that slept prematurely.
 		 */
 		if (remaining) {
-			WRITE_ONCE(pgdat->kswapd_highest_zoneidx,
-					kswapd_highest_zoneidx(pgdat,
-							highest_zoneidx));
+			WRITE_ONCE(pgdat->kswapd_highest_zoneidx,kswapd_highest_zoneidx(pgdat,highest_zoneidx));
 
 			if (READ_ONCE(pgdat->kswapd_order) < reclaim_order)
 				WRITE_ONCE(pgdat->kswapd_order, reclaim_order);
 		}
-
+		//将kswap从kswapd_wait链表中移除，设置为
 		finish_wait(&pgdat->kswapd_wait, &wait);
 		prepare_to_wait(&pgdat->kswapd_wait, &wait, TASK_INTERRUPTIBLE);
 	}
@@ -4244,8 +4246,8 @@ static void kswapd_try_to_sleep(pg_data_t *pgdat, int alloc_order, int reclaim_o
 	 * After a short sleep, check if it was a premature sleep. If not, then
 	 * go fully to sleep until explicitly woken up.
 	 */
-	if (!remaining &&
-	    prepare_kswapd_sleep(pgdat, reclaim_order, highest_zoneidx)) {
+	if (!remaining && prepare_kswapd_sleep(pgdat, reclaim_order, highest_zoneidx)) {
+
 		trace_mm_vmscan_kswapd_sleep(pgdat->node_id);
 
 		/*
@@ -4264,9 +4266,8 @@ static void kswapd_try_to_sleep(pg_data_t *pgdat, int alloc_order, int reclaim_o
 			 * kswapd failures, because direct reclaiming may be
 			 * not triggered.
 			 */
-			if (numa_promotion_tiered_enabled &&
-						node_is_toptier(pgdat->node_id) &&
-					pgdat->kswapd_failures >= MAX_RECLAIM_RETRIES) {
+			if (numa_promotion_tiered_enabled && node_is_toptier(pgdat->node_id) && pgdat->kswapd_failures >= MAX_RECLAIM_RETRIES) 
+			{
 				remaining = schedule_timeout(10 * HZ);
 				if (!remaining) {
 					pgdat->kswapd_highest_zoneidx = ZONE_MOVABLE;
@@ -4307,10 +4308,12 @@ static int kswapd(void *p)
 	struct task_struct *tsk = current;
 	const struct cpumask *cpumask = cpumask_of_node(pgdat->node_id);
 
+	//当前任务可以在该节点cpu运行
 	if (!cpumask_empty(cpumask))
 		set_cpus_allowed_ptr(tsk, cpumask);
 
 	/*
+	
 	 * Tell the memory management that we're a "memory allocator",
 	 * and that if we need more memory we should get access to it
 	 * regardless (see "__alloc_pages()"). "kswapd" should
@@ -4322,21 +4325,24 @@ static int kswapd(void *p)
 	 * us from recursively trying to free more memory as we're
 	 * trying to free the first piece of memory in the first place).
 	 */
+	//将当前任务标志设置为
 	tsk->flags |= PF_MEMALLOC | PF_SWAPWRITE | PF_KSWAPD;
 	set_freezable();
 
 	WRITE_ONCE(pgdat->kswapd_order, 0);
 	WRITE_ONCE(pgdat->kswapd_highest_zoneidx, MAX_NR_ZONES);
+
+	//无线循环
 	for ( ; ; ) {
 		bool ret;
 
 		alloc_order = reclaim_order = READ_ONCE(pgdat->kswapd_order);
 		highest_zoneidx = kswapd_highest_zoneidx(pgdat,
 							highest_zoneidx);
-
+		
 kswapd_try_sleep:
-		kswapd_try_to_sleep(pgdat, alloc_order, reclaim_order,
-					highest_zoneidx);
+		//首先尝试进入休眠状态：是否进入睡眠状态，让出CPU控制权；函数内部是kswapd唤醒后线程的入口点
+		kswapd_try_to_sleep(pgdat, alloc_order, reclaim_order,highest_zoneidx);
 
 		/* Read the new order and highest_zoneidx */
 		alloc_order = READ_ONCE(pgdat->kswapd_order);
@@ -4346,13 +4352,11 @@ kswapd_try_sleep:
 		WRITE_ONCE(pgdat->kswapd_highest_zoneidx, MAX_NR_ZONES);
 
 		ret = try_to_freeze();
-		if (kthread_should_stop())
+		if (kthread_should_stop())//接收到停止线程的信号
 			break;
 
-		/*
-		 * We can speed up thawing tasks if we don't call balance_pgdat
-		 * after returning from the refrigerator
-		 */
+		/* We can speed up thawing tasks if we don't call balance_pgdat
+		 * after returning from the refrigerator */
 		if (ret)
 			continue;
 
@@ -4364,14 +4368,17 @@ kswapd_try_sleep:
 		 * but kcompactd is woken to compact for the original
 		 * request (alloc_order).
 		 */
-		trace_mm_vmscan_kswapd_wake(pgdat->node_id, highest_zoneidx,
-						alloc_order);
-		reclaim_order = balance_pgdat(pgdat, alloc_order,
-						highest_zoneidx);
-		if (reclaim_order < alloc_order)
+		//调用balance_pgdat对节点内存进行回收，返回回收内存1的order
+		//reclaim_order表明回收过程获取到的最大连续内存块阶数
+		trace_mm_vmscan_kswapd_wake(pgdat->node_id, highest_zoneidx,alloc_order);
+		reclaim_order = balance_pgdat(pgdat, alloc_order,highest_zoneidx);
+		//内存块回收失败，跳转，用0阶的reclaim_order判断，这样kswapd线程直接sleep让直接内存回收回收内存
+		//kswapd在sleep前会唤醒compact内核线程去规 *整内存，期望其能规整出alloc_order阶大小的连续内存块
+		if (reclaim_order < alloc_order)//回收的
 			goto kswapd_try_sleep;
 	}
 
+	//结束进程的信号
 	tsk->flags &= ~(PF_MEMALLOC | PF_SWAPWRITE | PF_KSWAPD);
 
 	return 0;
