@@ -61,7 +61,6 @@
 
 /*
  * "Linux" PTE definitions for LPAE.
- *
  * These bits overlap with the hardware bits but the naming is preserved for
  * consistency with the classic page table format.
  */

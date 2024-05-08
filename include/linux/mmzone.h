@@ -813,6 +813,8 @@ typedef struct pglist_data {
 	struct zonelist node_zonelists[MAX_ZONELISTS];
 
 	int nr_zones; /* number of populated zones in this node */
+
+	//在服务器一般是sparsemem更常见，cxl这个服务器也是
 #ifdef CONFIG_FLATMEM	/* means !SPARSEMEM */
 	struct page *node_mem_map;
 #ifdef CONFIG_PAGE_EXTENSION
@@ -983,6 +985,8 @@ static inline bool zone_is_zone_device(struct zone *zone)
 	return false;
 }
 #endif
+
+
 
 /*
  * Returns true if a zone has pages managed by the buddy allocator.

@@ -6,18 +6,14 @@
 #include <asm/page.h>
 #include <asm/pgtable_types.h>
 
-/*
- * Macro to mark a page protection value as UC-
- */
+/* Macro to mark a page protection value as UC-*/
 #define pgprot_noncached(prot)						\
 	((boot_cpu_data.x86 > 3)					\
 	 ? (__pgprot(pgprot_val(prot) |					\
 		     cachemode2protval(_PAGE_CACHE_MODE_UC_MINUS)))	\
 	 : (prot))
 
-/*
- * Macros to add or remove encryption attribute
- */
+/* Macros to add or remove encryption attribute */
 #define pgprot_encrypted(prot)	__pgprot(__sme_set(pgprot_val(prot)))
 #define pgprot_decrypted(prot)	__pgprot(__sme_clr(pgprot_val(prot)))
 

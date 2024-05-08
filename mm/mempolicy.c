@@ -68,6 +68,11 @@
    kernel is not always grateful with that.
 */
 
+/*
+补丁0:修改函数void check_toptier_balanced(void)
+
+*/
+
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/mempolicy.h>
@@ -1013,21 +1018,26 @@ static long do_get_mempolicy(int *policy, nodemask_t *nmask,
 	return err;
 }
 
+//补丁0添加函数
+//检查顶层顶点的状态，若不平衡，唤醒kswapd
 void check_toptier_balanced(void)
 {
 	int nid;
 	int balanced;
 
+	//检查变量，未启用，直接返回
 	if (!numa_promotion_tiered_enabled)
 		return;
-
+	//遍历所有节点，
 	for_each_node_state(nid, N_MEMORY) {
 		pg_data_t *pgdat = NODE_DATA(nid);
 
 		if (!node_is_toptier(nid))
 			continue;
-
+			
+		//判断是否平衡
 		balanced = pgdat_toptier_balanced(pgdat, 0, ZONE_MOVABLE);
+		//不平衡，唤醒
 		if (!balanced) {
 			pgdat->kswapd_order = 0;
 			pgdat->kswapd_highest_zoneidx = ZONE_NORMAL;

@@ -34,7 +34,11 @@
 #include <asm/tlbflush.h>
 
 #include "internal.h"
+/*
+ TPP补丁0：修改change_pte_range函数
+*/
 
+//
 static unsigned long change_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 		unsigned long addr, unsigned long end, pgprot_t newprot,
 		unsigned long cp_flags)
@@ -337,6 +341,7 @@ static inline unsigned long change_p4d_range(struct vm_area_struct *vma,
 	return pages;
 }
 
+//
 static unsigned long change_protection_range(struct vm_area_struct *vma,
 		unsigned long addr, unsigned long end, pgprot_t newprot,
 		unsigned long cp_flags)
@@ -411,8 +416,8 @@ static const struct mm_walk_ops prot_none_walk_ops = {
 	.test_walk		= prot_none_test,
 };
 
-int
-mprotect_fixup(struct vm_area_struct *vma, struct vm_area_struct **pprev,
+//重要函数
+int mprotect_fixup(struct vm_area_struct *vma, struct vm_area_struct **pprev,
 	unsigned long start, unsigned long end, unsigned long newflags)
 {
 	struct mm_struct *mm = vma->vm_mm;
@@ -522,9 +527,8 @@ fail:
 	return error;
 }
 
-/*
- * pkey==-1 when doing a legacy mprotect()
- */
+//pkey==-1 when doing a legacy mprotect()
+//
 static int do_mprotect_pkey(unsigned long start, size_t len,
 		unsigned long prot, int pkey)
 {
@@ -668,6 +672,7 @@ SYSCALL_DEFINE3(mprotect, unsigned long, start, size_t, len,
 	return do_mprotect_pkey(start, len, prot, -1);
 }
 
+//CXL服务器设置了
 #ifdef CONFIG_ARCH_HAS_PKEYS
 
 SYSCALL_DEFINE4(pkey_mprotect, unsigned long, start, size_t, len,

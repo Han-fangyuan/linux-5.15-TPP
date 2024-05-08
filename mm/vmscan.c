@@ -10,6 +10,10 @@
  *  Multiqueue VM started 5.8.00, Rik van Riel.
  */
 /*
+
+TPP补丁0
+1. 增加了一个函数，判断top顶点是否是平衡的
+
 TPP补丁1修改函数
 1. demote_page_list
 
@@ -3799,6 +3803,8 @@ static bool pgdat_balanced(pg_data_t *pgdat, int order, int highest_zoneidx)
 	return false;
 }
 
+//补丁0添加的函数，判断顶层节点是否平衡
+//
 bool pgdat_toptier_balanced(pg_data_t *pgdat, int order, int zone_idx)
 {
 	unsigned long mark;
@@ -3812,6 +3818,8 @@ bool pgdat_toptier_balanced(pg_data_t *pgdat, int order, int zone_idx)
 
 	zone = pgdat->node_zones + ZONE_NORMAL;
 
+	//判断是否是被管理的内存区
+	//如果不是需要被管理的区域，说明不需要检查这个区域，认为是平衡的
 	if (!managed_zone(zone))
 		return true;
 
@@ -4391,24 +4399,32 @@ kswapd_try_sleep:
  * has failed or is not needed, still wake up kcompactd if only compaction is
  * needed.
  */
+
+//唤醒kswap守护进程代码
+//参数：zone内存区域；内存分配标志；内存分配的阶；最高内存区类型索引
+
+//顶层节点不平衡时，唤醒kswapd调用
+//wakeup_kswapd(pgdat->node_zones + ZONE_NORMAL, 0, 1, ZONE_NORMAL);
+
 void wakeup_kswapd(struct zone *zone, gfp_t gfp_flags, int order,
 		   enum zone_type highest_zoneidx)
 {
 	pg_data_t *pgdat;
 	enum zone_type curr_idx;
 
-	if (!managed_zone(zone))
+	if (!mtbanaged_zone(zone))
 		return;
 
 	if (!cpuset_zone_allowed(zone, gfp_flags))
 		return;
 
 	pgdat = zone->zone_pgdat;
-	curr_idx = READ_ONCE(pgdat->kswapd_highest_zoneidx);
 
+	//更新回收最高区域索引
+	curr_idx = READ_ONCE(pgdat->kswapd_highest_zoneidx);
 	if (curr_idx == MAX_NR_ZONES || curr_idx < highest_zoneidx)
 		WRITE_ONCE(pgdat->kswapd_highest_zoneidx, highest_zoneidx);
-
+	//更新需求的阶
 	if (READ_ONCE(pgdat->kswapd_order) < order)
 		WRITE_ONCE(pgdat->kswapd_order, order);
 
