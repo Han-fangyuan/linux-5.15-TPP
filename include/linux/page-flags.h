@@ -100,6 +100,7 @@
  * SPARSEMEM section (for variants of SPARSEMEM that require section ids like
  * SPARSEMEM_EXTREME with !SPARSEMEM_VMEMMAP).
  */
+
 enum pageflags {
 	PG_locked,		/* Page is locked. Don't touch. */
 	PG_referenced,
@@ -135,11 +136,14 @@ enum pageflags {
 	PG_young,
 	PG_idle,
 #endif
+
 #ifdef CONFIG_64BIT
 	PG_arch_2,
+//TPP代码添加
 #ifdef CONFIG_NUMA_BALANCING
 	PG_demoted,
 #endif
+//TPP代码添加
 #endif
 #ifdef CONFIG_KASAN_HW_TAGS
 	PG_skip_kasan_poison,
@@ -466,11 +470,13 @@ PAGEFLAG(SkipKASanPoison, skip_kasan_poison, PF_HEAD)
 PAGEFLAG_FALSE(SkipKASanPoison)
 #endif
 
+//TPP代码添加
 #if defined(CONFIG_NUMA_BALANCING) && defined(CONFIG_64BIT)
 TESTPAGEFLAG(Demoted, demoted, PF_NO_TAIL)
 SETPAGEFLAG(Demoted, demoted, PF_NO_TAIL)
 TESTCLEARFLAG(Demoted, demoted, PF_NO_TAIL)
 #endif
+//TPP代码添加
 
 /*
  * PageReported() is used to track reported free pages within the Buddy

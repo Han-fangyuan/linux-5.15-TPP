@@ -170,13 +170,10 @@ struct scan_control {
 #define prefetchw_prev_lru_page(_page, _base, _field) do { } while (0)
 #endif
 
-/*
- * From 0 .. 200.  Higher means more swappy.
- */
+/*From 0 .. 200.  Higher means more swappy.*/
 int vm_swappiness = 60;
 
-static void set_task_reclaim_state(struct task_struct *task,
-				   struct reclaim_state *rs)
+static void set_task_reclaim_state(struct task_struct *task,struct reclaim_state *rs)
 {
 	/* Check for an overwrite */
 	WARN_ON_ONCE(rs && task->reclaim_state);
@@ -489,8 +486,8 @@ static bool writeback_throttling_sane(struct scan_control *sc)
 }
 #endif
 
-static long xchg_nr_deferred(struct shrinker *shrinker,
-			     struct shrink_control *sc)
+
+static long xchg_nr_deferred(struct shrinker *shrinker,struct shrink_control *sc)
 {
 	int nid = sc->nid;
 
@@ -506,8 +503,7 @@ static long xchg_nr_deferred(struct shrinker *shrinker,
 }
 
 
-static long add_nr_deferred(long nr, struct shrinker *shrinker,
-			    struct shrink_control *sc)
+static long add_nr_deferred(long nr, struct shrinker *shrinker, struct shrink_control *sc)
 {
 	int nid = sc->nid;
 
@@ -2966,6 +2962,7 @@ static inline bool should_continue_reclaim(struct pglist_data *pgdat,
 	return inactive_lru_pages > pages_for_compaction;
 }
 
+//
 static void shrink_node_memcgs(pg_data_t *pgdat, struct scan_control *sc)
 {
 	struct mem_cgroup *target_memcg = sc->target_mem_cgroup;
@@ -3804,7 +3801,6 @@ static bool pgdat_balanced(pg_data_t *pgdat, int order, int highest_zoneidx)
 }
 
 //补丁0添加的函数，判断顶层节点是否平衡
-//
 bool pgdat_toptier_balanced(pg_data_t *pgdat, int order, int zone_idx)
 {
 	unsigned long mark;
@@ -3844,7 +3840,6 @@ static void clear_pgdat_congested(pg_data_t *pgdat)
 /*
  * Prepare kswapd for sleeping. This verifies that there are no processes
  * waiting in throttle_direct_reclaim() and that watermarks have been met.
- *
  * Returns true if kswapd is ready to sleep
  */
 static bool prepare_kswapd_sleep(pg_data_t *pgdat, int order,
@@ -3925,8 +3920,7 @@ static bool kswapd_shrink_node(pg_data_t *pgdat,
 }
 
 /* Page allocator PCP high watermark is lowered if reclaim is active. */
-static inline void
-update_reclaim_active(pg_data_t *pgdat, int highest_zoneidx, bool active)
+static inline void update_reclaim_active(pg_data_t *pgdat, int highest_zoneidx, bool active)
 {
 	int i;
 	struct zone *zone;
@@ -4195,7 +4189,7 @@ static enum zone_type kswapd_highest_zoneidx(pg_data_t *pgdat,
 	return curr_idx == MAX_NR_ZONES ? prev_highest_zoneidx : curr_idx;
 }
 
-//
+
 static void kswapd_try_to_sleep(pg_data_t *pgdat, int alloc_order, int reclaim_order,
 				unsigned int highest_zoneidx)
 {

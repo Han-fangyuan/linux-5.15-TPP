@@ -488,8 +488,8 @@ enum zone_type {
 #define ASYNC_AND_SYNC 2
 
 struct zone {
-	/* Read-mostly fields */
 
+	/* Read-mostly fields */
 	/* zone watermarks, access with *_wmark_pages(zone) macros */
 	unsigned long _watermark[NR_WMARK];
 	unsigned long watermark_boost;
@@ -510,13 +510,12 @@ struct zone {
 #ifdef CONFIG_NUMA
 	int node;
 #endif
+
 	struct pglist_data	*zone_pgdat;
 	struct per_cpu_pages	__percpu *per_cpu_pageset;
 	struct per_cpu_zonestat	__percpu *per_cpu_zonestats;
-	/*
-	 * the high and batch values are copied to individual pagesets for
-	 * faster access
-	 */
+
+	// the high and batch values are copied to individual pagesets for faster access
 	int pageset_high;
 	int pageset_batch;
 
@@ -533,12 +532,10 @@ struct zone {
 
 	/*
 	 * spanned_pages is the total pages spanned by the zone, including
-	 * holes, which is calculated as:
-	 * 	spanned_pages = zone_end_pfn - zone_start_pfn;
+	 * holes, which is calculated as:spanned_pages = zone_end_pfn - zone_start_pfn;
 	 *
 	 * present_pages is physical pages existing within the zone, which
-	 * is calculated as:
-	 *	present_pages = spanned_pages - absent_pages(pages in holes);
+	 * is calculated as:present_pages = spanned_pages - absent_pages(pages in holes);
 	 *
 	 * present_early_pages is present pages existing within the zone
 	 * located on memory available since early boot, excluding hotplugged
@@ -546,8 +543,7 @@ struct zone {
 	 *
 	 * managed_pages is present pages managed by the buddy system, which
 	 * is calculated as (reserved_pages includes pages allocated by the
-	 * bootmem allocator):
-	 *	managed_pages = present_pages - reserved_pages;
+	 * bootmem allocator): managed_pages = present_pages - reserved_pages;
 	 *
 	 * cma pages is present pages that are assigned for CMA use
 	 * (MIGRATE_CMA).
@@ -573,12 +569,14 @@ struct zone {
 	 * mem_hotplug_begin/end(). Any reader who can't tolerant drift of
 	 * present_pages should get_online_mems() to get a stable value.
 	 */
+
 	atomic_long_t		managed_pages;
 	unsigned long		spanned_pages;
 	unsigned long		present_pages;
 #if defined(CONFIG_MEMORY_HOTPLUG)
 	unsigned long		present_early_pages;
 #endif
+
 #ifdef CONFIG_CMA
 	unsigned long		cma_pages;
 #endif
@@ -669,9 +667,8 @@ enum pgdat_flags {
 };
 
 enum zone_flags {
-	ZONE_BOOSTED_WATERMARK,		/* zone recently boosted watermarks.
-					 * Cleared when kswapd is woken.
-					 */
+	ZONE_BOOSTED_WATERMARK,		
+	//zone recently boosted watermarks. Cleared when kswapd is woken.
 	ZONE_RECLAIM_ACTIVE,		/* kswapd may be scanning the zone. */
 };
 
@@ -1235,7 +1232,7 @@ static inline struct zoneref *first_zones_zonelist(struct zonelist *zonelist,
 #define pfn_to_nid(pfn)		(0)
 #endif
 
-#ifdef CONFIG_SPARSEMEM
+//#ifdef CONFIG_SPARSEMEM
 
 /*
  * PA_SECTION_SHIFT		physical address to/from section number

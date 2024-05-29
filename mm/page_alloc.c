@@ -2440,13 +2440,10 @@ static void prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags
 		clear_page_pfmemalloc(page);
 }
 
-/*
- * Go through the free lists for the given migratetype and remove
- * the smallest available page from the freelists
- */
-static __always_inline
-struct page *__rmqueue_smallest(struct zone *zone, unsigned int order,
-						int migratetype)
+/* Go through the free lists for the given migratetype and remove
+ * the smallest available page from the freelists */
+
+static __always_inline struct page *__rmqueue_smallest(struct zone *zone, unsigned int order,int migratetype)
 {
 	unsigned int current_order;
 	struct free_area *area;
@@ -2971,8 +2968,8 @@ do_steal:
  * Do the hard work of removing an element from the buddy allocator.
  * Call me with the zone->lock already held.
  */
-static __always_inline struct page *
-__rmqueue(struct zone *zone, unsigned int order, int migratetype,
+
+static __always_inline struct page * __rmqueue(struct zone *zone, unsigned int order, int migratetype,
 						unsigned int alloc_flags)
 {
 	struct page *page;
@@ -2997,8 +2994,7 @@ retry:
 		if (alloc_flags & ALLOC_CMA)
 			page = __rmqueue_cma_fallback(zone, order);
 
-		if (!page && __rmqueue_fallback(zone, order, migratetype,
-								alloc_flags))
+		if (!page && __rmqueue_fallback(zone, order, migratetype, alloc_flags))
 			goto retry;
 	}
 out:
@@ -3668,11 +3664,9 @@ static struct page *rmqueue_pcplist(struct zone *preferred_zone,
 	return page;
 }
 
-/*
- * Allocate a page from the given zone. Use pcplists for order-0 allocations.
- */
-static inline
-struct page *rmqueue(struct zone *preferred_zone,
+
+//Allocate a page from the given zone. Use pcplists for order-0 allocations.
+static inline struct page *rmqueue(struct zone *preferred_zone,
 			struct zone *zone, unsigned int order,
 			gfp_t gfp_flags, unsigned int alloc_flags,
 			int migratetype)
@@ -3693,10 +3687,8 @@ struct page *rmqueue(struct zone *preferred_zone,
 		}
 	}
 
-	/*
-	 * We most definitely don't want callers attempting to
-	 * allocate greater than order-1 page units with __GFP_NOFAIL.
-	 */
+	/* We most definitely don't want callers attempting to
+	 * allocate greater than order-1 page units with __GFP_NOFAIL.*/
 	WARN_ON_ONCE((gfp_flags & __GFP_NOFAIL) && (order > 1));
 	spin_lock_irqsave(&zone->lock, flags);
 
@@ -3731,7 +3723,9 @@ out:
 	if (test_bit(ZONE_BOOSTED_WATERMARK, &zone->flags)) {
 		clear_bit(ZONE_BOOSTED_WATERMARK, &zone->flags);
 		wakeup_kswapd(zone, 0, 0, zone_idx(zone));
-	} else if (!pgdat_toptier_balanced(zone->zone_pgdat, order, zone_idx(zone)))
+	} 
+	//这块else代码是补丁0分层内存系统透明页面放置添加的
+	else if (!pgdat_toptier_balanced(zone->zone_pgdat, order, zone_idx(zone)))
 		wakeup_kswapd(zone, 0, 0, zone_idx(zone));
 
 	VM_BUG_ON_PAGE(page && bad_range(zone, page), page);
@@ -8396,17 +8390,15 @@ static void __setup_per_zone_wmarks(void)
 		 * scale factor in proportion to available memory, but
 		 * ensure a minimum size on small systems.
 		 */
-		tmp = max_t(u64, tmp >> 2,
-			    mult_frac(zone_managed_pages(zone),
-				      watermark_scale_factor, 10000));
+		tmp = max_t(u64, tmp >> 2, mult_frac(zone_managed_pages(zone), watermark_scale_factor, 10000));
 
 		zone->watermark_boost = 0;
 		zone->_watermark[WMARK_LOW]  = min_wmark_pages(zone) + tmp;
 		zone->_watermark[WMARK_HIGH] = min_wmark_pages(zone) + tmp * 2;
 
+		//以下是TPP代码补丁0添加的
 		if (numa_promotion_tiered_enabled) {
 			tmp = mult_frac(zone_managed_pages(zone), demote_scale_factor, 10000);
-
 			/*
 			 * Clamp demote watermark between twice high watermark
 			 * and max managed pages.
@@ -8422,6 +8414,7 @@ static void __setup_per_zone_wmarks(void)
 
 		spin_unlock_irqrestore(&zone->lock, flags);
 	}
+	//以上是TPP补丁0添加的
 
 	/* update totalreserve_pages */
 	calculate_totalreserve_pages();
