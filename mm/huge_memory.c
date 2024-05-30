@@ -51,14 +51,14 @@
  */
 unsigned long transparent_hugepage_flags __read_mostly =
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE_ALWAYS
-	(1<<TRANSPARENT_HUGEPAGE_FLAG)|
+	(1 << TRANSPARENT_HUGEPAGE_FLAG) |
 #endif
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE_MADVISE
-	(1<<TRANSPARENT_HUGEPAGE_REQ_MADV_FLAG)|
+	(1 << TRANSPARENT_HUGEPAGE_REQ_MADV_FLAG) |
 #endif
-	(1<<TRANSPARENT_HUGEPAGE_DEFRAG_REQ_MADV_FLAG)|
-	(1<<TRANSPARENT_HUGEPAGE_DEFRAG_KHUGEPAGED_FLAG)|
-	(1<<TRANSPARENT_HUGEPAGE_USE_ZERO_PAGE_FLAG);
+	(1 << TRANSPARENT_HUGEPAGE_DEFRAG_REQ_MADV_FLAG) |
+	(1 << TRANSPARENT_HUGEPAGE_DEFRAG_KHUGEPAGED_FLAG) |
+	(1 << TRANSPARENT_HUGEPAGE_USE_ZERO_PAGE_FLAG);
 
 static struct shrinker deferred_split_shrinker;
 
@@ -98,7 +98,7 @@ retry:
 		return true;
 
 	zero_page = alloc_pages((GFP_TRANSHUGE | __GFP_ZERO) & ~__GFP_MOVABLE,
-			HPAGE_PMD_ORDER);
+				HPAGE_PMD_ORDER);
 	if (!zero_page) {
 		count_vm_event(THP_ZERO_PAGE_ALLOC_FAILED);
 		return false;
@@ -148,14 +148,14 @@ void mm_put_huge_zero_page(struct mm_struct *mm)
 }
 
 static unsigned long shrink_huge_zero_page_count(struct shrinker *shrink,
-					struct shrink_control *sc)
+						 struct shrink_control *sc)
 {
 	/* we can free zero page only if last reference remains */
 	return atomic_read(&huge_zero_refcount) == 1 ? HPAGE_PMD_NR : 0;
 }
 
 static unsigned long shrink_huge_zero_page_scan(struct shrinker *shrink,
-				       struct shrink_control *sc)
+						struct shrink_control *sc)
 {
 	if (atomic_cmpxchg(&huge_zero_refcount, 1, 0) == 1) {
 		struct page *zero_page = xchg(&huge_zero_page, NULL);
@@ -175,8 +175,8 @@ static struct shrinker huge_zero_page_shrinker = {
 };
 
 #ifdef CONFIG_SYSFS
-static ssize_t enabled_show(struct kobject *kobj,
-			    struct kobj_attribute *attr, char *buf)
+static ssize_t enabled_show(struct kobject *kobj, struct kobj_attribute *attr,
+			    char *buf)
 {
 	const char *output;
 
@@ -191,21 +191,25 @@ static ssize_t enabled_show(struct kobject *kobj,
 	return sysfs_emit(buf, "%s\n", output);
 }
 
-static ssize_t enabled_store(struct kobject *kobj,
-			     struct kobj_attribute *attr,
+static ssize_t enabled_store(struct kobject *kobj, struct kobj_attribute *attr,
 			     const char *buf, size_t count)
 {
 	ssize_t ret = count;
 
 	if (sysfs_streq(buf, "always")) {
-		clear_bit(TRANSPARENT_HUGEPAGE_REQ_MADV_FLAG, &transparent_hugepage_flags);
+		clear_bit(TRANSPARENT_HUGEPAGE_REQ_MADV_FLAG,
+			  &transparent_hugepage_flags);
 		set_bit(TRANSPARENT_HUGEPAGE_FLAG, &transparent_hugepage_flags);
 	} else if (sysfs_streq(buf, "madvise")) {
-		clear_bit(TRANSPARENT_HUGEPAGE_FLAG, &transparent_hugepage_flags);
-		set_bit(TRANSPARENT_HUGEPAGE_REQ_MADV_FLAG, &transparent_hugepage_flags);
+		clear_bit(TRANSPARENT_HUGEPAGE_FLAG,
+			  &transparent_hugepage_flags);
+		set_bit(TRANSPARENT_HUGEPAGE_REQ_MADV_FLAG,
+			&transparent_hugepage_flags);
 	} else if (sysfs_streq(buf, "never")) {
-		clear_bit(TRANSPARENT_HUGEPAGE_FLAG, &transparent_hugepage_flags);
-		clear_bit(TRANSPARENT_HUGEPAGE_REQ_MADV_FLAG, &transparent_hugepage_flags);
+		clear_bit(TRANSPARENT_HUGEPAGE_FLAG,
+			  &transparent_hugepage_flags);
+		clear_bit(TRANSPARENT_HUGEPAGE_REQ_MADV_FLAG,
+			  &transparent_hugepage_flags);
 	} else
 		ret = -EINVAL;
 
@@ -228,9 +232,9 @@ ssize_t single_hugepage_flag_show(struct kobject *kobj,
 }
 
 ssize_t single_hugepage_flag_store(struct kobject *kobj,
-				 struct kobj_attribute *attr,
-				 const char *buf, size_t count,
-				 enum transparent_hugepage_flag flag)
+				   struct kobj_attribute *attr, const char *buf,
+				   size_t count,
+				   enum transparent_hugepage_flag flag)
 {
 	unsigned long value;
 	int ret;
@@ -249,8 +253,8 @@ ssize_t single_hugepage_flag_store(struct kobject *kobj,
 	return count;
 }
 
-static ssize_t defrag_show(struct kobject *kobj,
-			   struct kobj_attribute *attr, char *buf)
+static ssize_t defrag_show(struct kobject *kobj, struct kobj_attribute *attr,
+			   char *buf)
 {
 	const char *output;
 
@@ -272,35 +276,54 @@ static ssize_t defrag_show(struct kobject *kobj,
 	return sysfs_emit(buf, "%s\n", output);
 }
 
-static ssize_t defrag_store(struct kobject *kobj,
-			    struct kobj_attribute *attr,
+static ssize_t defrag_store(struct kobject *kobj, struct kobj_attribute *attr,
 			    const char *buf, size_t count)
 {
 	if (sysfs_streq(buf, "always")) {
-		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_FLAG, &transparent_hugepage_flags);
-		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_OR_MADV_FLAG, &transparent_hugepage_flags);
-		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_REQ_MADV_FLAG, &transparent_hugepage_flags);
-		set_bit(TRANSPARENT_HUGEPAGE_DEFRAG_DIRECT_FLAG, &transparent_hugepage_flags);
+		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_FLAG,
+			  &transparent_hugepage_flags);
+		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_OR_MADV_FLAG,
+			  &transparent_hugepage_flags);
+		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_REQ_MADV_FLAG,
+			  &transparent_hugepage_flags);
+		set_bit(TRANSPARENT_HUGEPAGE_DEFRAG_DIRECT_FLAG,
+			&transparent_hugepage_flags);
 	} else if (sysfs_streq(buf, "defer+madvise")) {
-		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_DIRECT_FLAG, &transparent_hugepage_flags);
-		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_FLAG, &transparent_hugepage_flags);
-		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_REQ_MADV_FLAG, &transparent_hugepage_flags);
-		set_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_OR_MADV_FLAG, &transparent_hugepage_flags);
+		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_DIRECT_FLAG,
+			  &transparent_hugepage_flags);
+		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_FLAG,
+			  &transparent_hugepage_flags);
+		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_REQ_MADV_FLAG,
+			  &transparent_hugepage_flags);
+		set_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_OR_MADV_FLAG,
+			&transparent_hugepage_flags);
 	} else if (sysfs_streq(buf, "defer")) {
-		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_DIRECT_FLAG, &transparent_hugepage_flags);
-		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_OR_MADV_FLAG, &transparent_hugepage_flags);
-		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_REQ_MADV_FLAG, &transparent_hugepage_flags);
-		set_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_FLAG, &transparent_hugepage_flags);
+		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_DIRECT_FLAG,
+			  &transparent_hugepage_flags);
+		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_OR_MADV_FLAG,
+			  &transparent_hugepage_flags);
+		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_REQ_MADV_FLAG,
+			  &transparent_hugepage_flags);
+		set_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_FLAG,
+			&transparent_hugepage_flags);
 	} else if (sysfs_streq(buf, "madvise")) {
-		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_DIRECT_FLAG, &transparent_hugepage_flags);
-		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_FLAG, &transparent_hugepage_flags);
-		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_OR_MADV_FLAG, &transparent_hugepage_flags);
-		set_bit(TRANSPARENT_HUGEPAGE_DEFRAG_REQ_MADV_FLAG, &transparent_hugepage_flags);
+		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_DIRECT_FLAG,
+			  &transparent_hugepage_flags);
+		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_FLAG,
+			  &transparent_hugepage_flags);
+		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_OR_MADV_FLAG,
+			  &transparent_hugepage_flags);
+		set_bit(TRANSPARENT_HUGEPAGE_DEFRAG_REQ_MADV_FLAG,
+			&transparent_hugepage_flags);
 	} else if (sysfs_streq(buf, "never")) {
-		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_DIRECT_FLAG, &transparent_hugepage_flags);
-		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_FLAG, &transparent_hugepage_flags);
-		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_OR_MADV_FLAG, &transparent_hugepage_flags);
-		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_REQ_MADV_FLAG, &transparent_hugepage_flags);
+		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_DIRECT_FLAG,
+			  &transparent_hugepage_flags);
+		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_FLAG,
+			  &transparent_hugepage_flags);
+		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_OR_MADV_FLAG,
+			  &transparent_hugepage_flags);
+		clear_bit(TRANSPARENT_HUGEPAGE_DEFRAG_REQ_MADV_FLAG,
+			  &transparent_hugepage_flags);
 	} else
 		return -EINVAL;
 
@@ -312,14 +335,16 @@ static struct kobj_attribute defrag_attr =
 static ssize_t use_zero_page_show(struct kobject *kobj,
 				  struct kobj_attribute *attr, char *buf)
 {
-	return single_hugepage_flag_show(kobj, attr, buf,
-					 TRANSPARENT_HUGEPAGE_USE_ZERO_PAGE_FLAG);
+	return single_hugepage_flag_show(
+		kobj, attr, buf, TRANSPARENT_HUGEPAGE_USE_ZERO_PAGE_FLAG);
 }
 static ssize_t use_zero_page_store(struct kobject *kobj,
-		struct kobj_attribute *attr, const char *buf, size_t count)
+				   struct kobj_attribute *attr, const char *buf,
+				   size_t count)
 {
-	return single_hugepage_flag_store(kobj, attr, buf, count,
-				 TRANSPARENT_HUGEPAGE_USE_ZERO_PAGE_FLAG);
+	return single_hugepage_flag_store(
+		kobj, attr, buf, count,
+		TRANSPARENT_HUGEPAGE_USE_ZERO_PAGE_FLAG);
 }
 static struct kobj_attribute use_zero_page_attr =
 	__ATTR(use_zero_page, 0644, use_zero_page_show, use_zero_page_store);
@@ -329,8 +354,7 @@ static ssize_t hpage_pmd_size_show(struct kobject *kobj,
 {
 	return sysfs_emit(buf, "%lu\n", HPAGE_PMD_SIZE);
 }
-static struct kobj_attribute hpage_pmd_size_attr =
-	__ATTR_RO(hpage_pmd_size);
+static struct kobj_attribute hpage_pmd_size_attr = __ATTR_RO(hpage_pmd_size);
 
 static struct attribute *hugepage_attr[] = {
 	&enabled_attr.attr,
@@ -351,7 +375,8 @@ static int __init hugepage_init_sysfs(struct kobject **hugepage_kobj)
 {
 	int err;
 
-	*hugepage_kobj = kobject_create_and_add("transparent_hugepage", mm_kobj);
+	*hugepage_kobj =
+		kobject_create_and_add("transparent_hugepage", mm_kobj);
 	if (unlikely(!*hugepage_kobj)) {
 		pr_err("failed to create transparent hugepage kobject\n");
 		return -ENOMEM;
@@ -405,7 +430,8 @@ static int __init hugepage_init(void)
 		 * Hardware doesn't support hugepages, hence disable
 		 * DAX PMD support.
 		 */
-		transparent_hugepage_flags = 1 << TRANSPARENT_HUGEPAGE_NEVER_DAX;
+		transparent_hugepage_flags = 1
+					     << TRANSPARENT_HUGEPAGE_NEVER_DAX;
 		return -EINVAL;
 	}
 
@@ -468,8 +494,7 @@ static int __init setup_transparent_hugepage(char *str)
 	if (!str)
 		goto out;
 	if (!strcmp(str, "always")) {
-		set_bit(TRANSPARENT_HUGEPAGE_FLAG,
-			&transparent_hugepage_flags);
+		set_bit(TRANSPARENT_HUGEPAGE_FLAG, &transparent_hugepage_flags);
 		clear_bit(TRANSPARENT_HUGEPAGE_REQ_MADV_FLAG,
 			  &transparent_hugepage_flags);
 		ret = 1;
@@ -543,8 +568,10 @@ bool is_transparent_hugepage(struct page *page)
 EXPORT_SYMBOL_GPL(is_transparent_hugepage);
 
 static unsigned long __thp_get_unmapped_area(struct file *filp,
-		unsigned long addr, unsigned long len,
-		loff_t off, unsigned long flags, unsigned long size)
+					     unsigned long addr,
+					     unsigned long len, loff_t off,
+					     unsigned long flags,
+					     unsigned long size)
 {
 	loff_t off_end = off + len;
 	loff_t off_align = round_up(off, size);
@@ -558,7 +585,7 @@ static unsigned long __thp_get_unmapped_area(struct file *filp,
 		return 0;
 
 	ret = current->mm->get_unmapped_area(filp, addr, len_pad,
-					      off >> PAGE_SHIFT, flags);
+					     off >> PAGE_SHIFT, flags);
 
 	/*
 	 * The failure might be due to length padding. The caller will retry
@@ -579,7 +606,8 @@ static unsigned long __thp_get_unmapped_area(struct file *filp,
 }
 
 unsigned long thp_get_unmapped_area(struct file *filp, unsigned long addr,
-		unsigned long len, unsigned long pgoff, unsigned long flags)
+				    unsigned long len, unsigned long pgoff,
+				    unsigned long flags)
 {
 	unsigned long ret;
 	loff_t off = (loff_t)pgoff << PAGE_SHIFT;
@@ -596,7 +624,7 @@ out:
 EXPORT_SYMBOL_GPL(thp_get_unmapped_area);
 
 static vm_fault_t __do_huge_pmd_anonymous_page(struct vm_fault *vmf,
-			struct page *page, gfp_t gfp)
+					       struct page *page, gfp_t gfp)
 {
 	struct vm_area_struct *vma = vmf->vma;
 	pgtable_t pgtable;
@@ -669,7 +697,6 @@ release:
 		pte_free(vma->vm_mm, pgtable);
 	put_page(page);
 	return ret;
-
 }
 
 /*
@@ -686,21 +713,25 @@ gfp_t vma_thp_gfp_mask(struct vm_area_struct *vma)
 	const bool vma_madvised = vma && (vma->vm_flags & VM_HUGEPAGE);
 
 	/* Always do synchronous compaction */
-	if (test_bit(TRANSPARENT_HUGEPAGE_DEFRAG_DIRECT_FLAG, &transparent_hugepage_flags))
+	if (test_bit(TRANSPARENT_HUGEPAGE_DEFRAG_DIRECT_FLAG,
+		     &transparent_hugepage_flags))
 		return GFP_TRANSHUGE | (vma_madvised ? 0 : __GFP_NORETRY);
 
 	/* Kick kcompactd and fail quickly */
-	if (test_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_FLAG, &transparent_hugepage_flags))
+	if (test_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_FLAG,
+		     &transparent_hugepage_flags))
 		return GFP_TRANSHUGE_LIGHT | __GFP_KSWAPD_RECLAIM;
 
 	/* Synchronous compaction if madvised, otherwise kick kcompactd */
-	if (test_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_OR_MADV_FLAG, &transparent_hugepage_flags))
+	if (test_bit(TRANSPARENT_HUGEPAGE_DEFRAG_KSWAPD_OR_MADV_FLAG,
+		     &transparent_hugepage_flags))
 		return GFP_TRANSHUGE_LIGHT |
-			(vma_madvised ? __GFP_DIRECT_RECLAIM :
-					__GFP_KSWAPD_RECLAIM);
+		       (vma_madvised ? __GFP_DIRECT_RECLAIM :
+				       __GFP_KSWAPD_RECLAIM);
 
 	/* Only do synchronous compaction if madvised */
-	if (test_bit(TRANSPARENT_HUGEPAGE_DEFRAG_REQ_MADV_FLAG, &transparent_hugepage_flags))
+	if (test_bit(TRANSPARENT_HUGEPAGE_DEFRAG_REQ_MADV_FLAG,
+		     &transparent_hugepage_flags))
 		return GFP_TRANSHUGE_LIGHT |
 		       (vma_madvised ? __GFP_DIRECT_RECLAIM : 0);
 
@@ -709,8 +740,8 @@ gfp_t vma_thp_gfp_mask(struct vm_area_struct *vma)
 
 /* Caller must hold page table lock. */
 static void set_huge_zero_page(pgtable_t pgtable, struct mm_struct *mm,
-		struct vm_area_struct *vma, unsigned long haddr, pmd_t *pmd,
-		struct page *zero_page)
+			       struct vm_area_struct *vma, unsigned long haddr,
+			       pmd_t *pmd, struct page *zero_page)
 {
 	pmd_t entry;
 	if (!pmd_none(*pmd))
@@ -737,8 +768,8 @@ vm_fault_t do_huge_pmd_anonymous_page(struct vm_fault *vmf)
 	if (unlikely(khugepaged_enter(vma, vma->vm_flags)))
 		return VM_FAULT_OOM;
 	if (!(vmf->flags & FAULT_FLAG_WRITE) &&
-			!mm_forbids_zeropage(vma->vm_mm) &&
-			transparent_hugepage_use_zero_page()) {
+	    !mm_forbids_zeropage(vma->vm_mm) &&
+	    transparent_hugepage_use_zero_page()) {
 		pgtable_t pgtable;
 		struct page *zero_page;
 		vm_fault_t ret;
@@ -766,7 +797,8 @@ vm_fault_t do_huge_pmd_anonymous_page(struct vm_fault *vmf)
 			} else {
 				set_huge_zero_page(pgtable, vma->vm_mm, vma,
 						   haddr, vmf->pmd, zero_page);
-				update_mmu_cache_pmd(vma, vmf->address, vmf->pmd);
+				update_mmu_cache_pmd(vma, vmf->address,
+						     vmf->pmd);
 				spin_unlock(vmf->ptl);
 			}
 		} else {
@@ -786,8 +818,8 @@ vm_fault_t do_huge_pmd_anonymous_page(struct vm_fault *vmf)
 }
 
 static void insert_pfn_pmd(struct vm_area_struct *vma, unsigned long addr,
-		pmd_t *pmd, pfn_t pfn, pgprot_t prot, bool write,
-		pgtable_t pgtable)
+			   pmd_t *pmd, pfn_t pfn, pgprot_t prot, bool write,
+			   pgtable_t pgtable)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	pmd_t entry;
@@ -857,10 +889,10 @@ vm_fault_t vmf_insert_pfn_pmd_prot(struct vm_fault *vmf, pfn_t pfn,
 	 * but we need to be consistent with PTEs and architectures that
 	 * can't support a 'special' bit.
 	 */
-	BUG_ON(!(vma->vm_flags & (VM_PFNMAP|VM_MIXEDMAP)) &&
-			!pfn_t_devmap(pfn));
-	BUG_ON((vma->vm_flags & (VM_PFNMAP|VM_MIXEDMAP)) ==
-						(VM_PFNMAP|VM_MIXEDMAP));
+	BUG_ON(!(vma->vm_flags & (VM_PFNMAP | VM_MIXEDMAP)) &&
+	       !pfn_t_devmap(pfn));
+	BUG_ON((vma->vm_flags & (VM_PFNMAP | VM_MIXEDMAP)) ==
+	       (VM_PFNMAP | VM_MIXEDMAP));
 	BUG_ON((vma->vm_flags & VM_PFNMAP) && is_cow_mapping(vma->vm_flags));
 
 	if (addr < vma->vm_start || addr >= vma->vm_end)
@@ -888,7 +920,7 @@ static pud_t maybe_pud_mkwrite(pud_t pud, struct vm_area_struct *vma)
 }
 
 static void insert_pfn_pud(struct vm_area_struct *vma, unsigned long addr,
-		pud_t *pud, pfn_t pfn, pgprot_t prot, bool write)
+			   pud_t *pud, pfn_t pfn, pgprot_t prot, bool write)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	pud_t entry;
@@ -947,10 +979,10 @@ vm_fault_t vmf_insert_pfn_pud_prot(struct vm_fault *vmf, pfn_t pfn,
 	 * but we need to be consistent with PTEs and architectures that
 	 * can't support a 'special' bit.
 	 */
-	BUG_ON(!(vma->vm_flags & (VM_PFNMAP|VM_MIXEDMAP)) &&
-			!pfn_t_devmap(pfn));
-	BUG_ON((vma->vm_flags & (VM_PFNMAP|VM_MIXEDMAP)) ==
-						(VM_PFNMAP|VM_MIXEDMAP));
+	BUG_ON(!(vma->vm_flags & (VM_PFNMAP | VM_MIXEDMAP)) &&
+	       !pfn_t_devmap(pfn));
+	BUG_ON((vma->vm_flags & (VM_PFNMAP | VM_MIXEDMAP)) ==
+	       (VM_PFNMAP | VM_MIXEDMAP));
 	BUG_ON((vma->vm_flags & VM_PFNMAP) && is_cow_mapping(vma->vm_flags));
 
 	if (addr < vma->vm_start || addr >= vma->vm_end)
@@ -965,20 +997,21 @@ EXPORT_SYMBOL_GPL(vmf_insert_pfn_pud_prot);
 #endif /* CONFIG_HAVE_ARCH_TRANSPARENT_HUGEPAGE_PUD */
 
 static void touch_pmd(struct vm_area_struct *vma, unsigned long addr,
-		pmd_t *pmd, int flags)
+		      pmd_t *pmd, int flags)
 {
 	pmd_t _pmd;
 
 	_pmd = pmd_mkyoung(*pmd);
 	if (flags & FOLL_WRITE)
 		_pmd = pmd_mkdirty(_pmd);
-	if (pmdp_set_access_flags(vma, addr & HPAGE_PMD_MASK,
-				pmd, _pmd, flags & FOLL_WRITE))
+	if (pmdp_set_access_flags(vma, addr & HPAGE_PMD_MASK, pmd, _pmd,
+				  flags & FOLL_WRITE))
 		update_mmu_cache_pmd(vma, addr, pmd);
 }
 
 struct page *follow_devmap_pmd(struct vm_area_struct *vma, unsigned long addr,
-		pmd_t *pmd, int flags, struct dev_pagemap **pgmap)
+			       pmd_t *pmd, int flags,
+			       struct dev_pagemap **pgmap)
 {
 	unsigned long pfn = pmd_pfn(*pmd);
 	struct mm_struct *mm = vma->vm_mm;
@@ -990,7 +1023,8 @@ struct page *follow_devmap_pmd(struct vm_area_struct *vma, unsigned long addr,
 	 * When we COW a devmap PMD entry, we split it into PTEs, so we should
 	 * not be in this function with `flags & FOLL_COW` set.
 	 */
-	WARN_ONCE(flags & FOLL_COW, "mm: In follow_devmap_pmd with FOLL_COW set");
+	WARN_ONCE(flags & FOLL_COW,
+		  "mm: In follow_devmap_pmd with FOLL_COW set");
 
 	/* FOLL_GET and FOLL_PIN are mutually exclusive. */
 	if (WARN_ON_ONCE((flags & (FOLL_PIN | FOLL_GET)) ==
@@ -1028,7 +1062,8 @@ struct page *follow_devmap_pmd(struct vm_area_struct *vma, unsigned long addr,
 
 int copy_huge_pmd(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 		  pmd_t *dst_pmd, pmd_t *src_pmd, unsigned long addr,
-		  struct vm_area_struct *dst_vma, struct vm_area_struct *src_vma)
+		  struct vm_area_struct *dst_vma,
+		  struct vm_area_struct *src_vma)
 {
 	spinlock_t *dst_ptl, *src_ptl;
 	struct page *src_page;
@@ -1058,7 +1093,7 @@ int copy_huge_pmd(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 		VM_BUG_ON(!is_pmd_migration_entry(pmd));
 		if (is_writable_migration_entry(entry)) {
 			entry = make_readable_migration_entry(
-							swp_offset(entry));
+				swp_offset(entry));
 			pmd = swp_entry_to_pmd(entry);
 			if (pmd_swp_soft_dirty(*src_pmd))
 				pmd = pmd_swp_mksoft_dirty(pmd);
@@ -1136,20 +1171,21 @@ out:
 
 #ifdef CONFIG_HAVE_ARCH_TRANSPARENT_HUGEPAGE_PUD
 static void touch_pud(struct vm_area_struct *vma, unsigned long addr,
-		pud_t *pud, int flags)
+		      pud_t *pud, int flags)
 {
 	pud_t _pud;
 
 	_pud = pud_mkyoung(*pud);
 	if (flags & FOLL_WRITE)
 		_pud = pud_mkdirty(_pud);
-	if (pudp_set_access_flags(vma, addr & HPAGE_PUD_MASK,
-				pud, _pud, flags & FOLL_WRITE))
+	if (pudp_set_access_flags(vma, addr & HPAGE_PUD_MASK, pud, _pud,
+				  flags & FOLL_WRITE))
 		update_mmu_cache_pud(vma, addr, pud);
 }
 
 struct page *follow_devmap_pud(struct vm_area_struct *vma, unsigned long addr,
-		pud_t *pud, int flags, struct dev_pagemap **pgmap)
+			       pud_t *pud, int flags,
+			       struct dev_pagemap **pgmap)
 {
 	unsigned long pfn = pud_pfn(*pud);
 	struct mm_struct *mm = vma->vm_mm;
@@ -1353,8 +1389,7 @@ static inline bool can_follow_write_pmd(pmd_t pmd, unsigned int flags)
 }
 
 struct page *follow_trans_huge_pmd(struct vm_area_struct *vma,
-				   unsigned long addr,
-				   pmd_t *pmd,
+				   unsigned long addr, pmd_t *pmd,
 				   unsigned int flags)
 {
 	struct mm_struct *mm = vma->vm_mm;
@@ -1453,8 +1488,7 @@ vm_fault_t do_huge_pmd_numa_page(struct vm_fault *vmf)
 
 	page_nid = page_to_nid(page);
 	last_cpupid = page_cpupid_last(page);
-	target_nid = numa_migrate_prep(page, vma, haddr, page_nid,
-				       &flags);
+	target_nid = numa_migrate_prep(page, vma, haddr, page_nid, &flags);
 
 	if (target_nid == NUMA_NO_NODE) {
 		put_page(page);
@@ -1479,8 +1513,7 @@ vm_fault_t do_huge_pmd_numa_page(struct vm_fault *vmf)
 
 out:
 	if (page_nid != NUMA_NO_NODE)
-		task_numa_fault(last_cpupid, page_nid, HPAGE_PMD_NR,
-				flags);
+		task_numa_fault(last_cpupid, page_nid, HPAGE_PMD_NR, flags);
 
 	return 0;
 
@@ -1501,7 +1534,7 @@ out_map:
  * Otherwise, return false.
  */
 bool madvise_free_huge_pmd(struct mmu_gather *tlb, struct vm_area_struct *vma,
-		pmd_t *pmd, unsigned long addr, unsigned long next)
+			   pmd_t *pmd, unsigned long addr, unsigned long next)
 {
 	spinlock_t *ptl;
 	pmd_t orig_pmd;
@@ -1521,7 +1554,7 @@ bool madvise_free_huge_pmd(struct mmu_gather *tlb, struct vm_area_struct *vma,
 
 	if (unlikely(!pmd_present(orig_pmd))) {
 		VM_BUG_ON(thp_migration_supported() &&
-				  !is_pmd_migration_entry(orig_pmd));
+			  !is_pmd_migration_entry(orig_pmd));
 		goto out;
 	}
 
@@ -1579,8 +1612,8 @@ static inline void zap_deposited_table(struct mm_struct *mm, pmd_t *pmd)
 	mm_dec_nr_ptes(mm);
 }
 
-int zap_huge_pmd(struct mmu_gather *tlb, struct vm_area_struct *vma,
-		 pmd_t *pmd, unsigned long addr)
+int zap_huge_pmd(struct mmu_gather *tlb, struct vm_area_struct *vma, pmd_t *pmd,
+		 unsigned long addr)
 {
 	pmd_t orig_pmd;
 	spinlock_t *ptl;
@@ -1596,8 +1629,7 @@ int zap_huge_pmd(struct mmu_gather *tlb, struct vm_area_struct *vma,
 	 * pgtable_trans_huge_withdraw after finishing pmdp related
 	 * operations.
 	 */
-	orig_pmd = pmdp_huge_get_and_clear_full(vma, addr, pmd,
-						tlb->fullmm);
+	orig_pmd = pmdp_huge_get_and_clear_full(vma, addr, pmd, tlb->fullmm);
 	tlb_remove_pmd_tlb_entry(tlb, pmd, addr);
 	if (vma_is_special_huge(vma)) {
 		if (arch_needs_pgtable_deposit())
@@ -1623,7 +1655,9 @@ int zap_huge_pmd(struct mmu_gather *tlb, struct vm_area_struct *vma,
 			page = pfn_swap_entry_to_page(entry);
 			flush_needed = 0;
 		} else
-			WARN_ONCE(1, "Non present huge pmd without pmd migration enabled!");
+			WARN_ONCE(
+				1,
+				"Non present huge pmd without pmd migration enabled!");
 
 		if (PageAnon(page)) {
 			zap_deposited_table(tlb->mm, pmd);
@@ -1631,7 +1665,8 @@ int zap_huge_pmd(struct mmu_gather *tlb, struct vm_area_struct *vma,
 		} else {
 			if (arch_needs_pgtable_deposit())
 				zap_deposited_table(tlb->mm, pmd);
-			add_mm_counter(tlb->mm, mm_counter_file(page), -HPAGE_PMD_NR);
+			add_mm_counter(tlb->mm, mm_counter_file(page),
+				       -HPAGE_PMD_NR);
 		}
 
 		spin_unlock(ptl);
@@ -1668,7 +1703,7 @@ static pmd_t move_soft_dirty_pmd(pmd_t pmd)
 }
 
 bool move_huge_pmd(struct vm_area_struct *vma, unsigned long old_addr,
-		  unsigned long new_addr, pmd_t *old_pmd, pmd_t *new_pmd)
+		   unsigned long new_addr, pmd_t *old_pmd, pmd_t *new_pmd)
 {
 	spinlock_t *old_ptl, *new_ptl;
 	pmd_t pmd;
@@ -1722,8 +1757,8 @@ bool move_huge_pmd(struct vm_area_struct *vma, unsigned long old_addr,
  *      or if prot_numa but THP migration is not supported
  *  - HPAGE_PMD_NR if protections changed and TLB flush necessary
  */
-int change_huge_pmd(struct vm_area_struct *vma, pmd_t *pmd,
-		unsigned long addr, pgprot_t newprot, unsigned long cp_flags)
+int change_huge_pmd(struct vm_area_struct *vma, pmd_t *pmd, unsigned long addr,
+		    pgprot_t newprot, unsigned long cp_flags)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	spinlock_t *ptl;
@@ -1756,7 +1791,7 @@ int change_huge_pmd(struct vm_area_struct *vma, pmd_t *pmd,
 			 * just be safe and disable write
 			 */
 			entry = make_readable_migration_entry(
-							swp_offset(entry));
+				swp_offset(entry));
 			newpmd = swp_entry_to_pmd(entry);
 			if (pmd_swp_soft_dirty(*pmd))
 				newpmd = pmd_swp_mksoft_dirty(newpmd);
@@ -1783,7 +1818,8 @@ int change_huge_pmd(struct vm_area_struct *vma, pmd_t *pmd,
 
 		/* skip scanning toptier node */
 		page = pmd_page(*pmd);
-		if (numa_promotion_tiered_enabled && node_is_toptier(page_to_nid(page)))
+		if (numa_promotion_tiered_enabled &&
+		    node_is_toptier(page_to_nid(page)))
 			goto unlock;
 	}
 
@@ -1843,7 +1879,7 @@ spinlock_t *__pmd_trans_huge_lock(pmd_t *pmd, struct vm_area_struct *vma)
 	spinlock_t *ptl;
 	ptl = pmd_lock(vma->vm_mm, pmd);
 	if (likely(is_swap_pmd(*pmd) || pmd_trans_huge(*pmd) ||
-			pmd_devmap(*pmd)))
+		   pmd_devmap(*pmd)))
 		return ptl;
 	spin_unlock(ptl);
 	return NULL;
@@ -1867,8 +1903,8 @@ spinlock_t *__pud_trans_huge_lock(pud_t *pud, struct vm_area_struct *vma)
 }
 
 #ifdef CONFIG_HAVE_ARCH_TRANSPARENT_HUGEPAGE_PUD
-int zap_huge_pud(struct mmu_gather *tlb, struct vm_area_struct *vma,
-		 pud_t *pud, unsigned long addr)
+int zap_huge_pud(struct mmu_gather *tlb, struct vm_area_struct *vma, pud_t *pud,
+		 unsigned long addr)
 {
 	spinlock_t *ptl;
 
@@ -1894,7 +1930,7 @@ int zap_huge_pud(struct mmu_gather *tlb, struct vm_area_struct *vma,
 }
 
 static void __split_huge_pud_locked(struct vm_area_struct *vma, pud_t *pud,
-		unsigned long haddr)
+				    unsigned long haddr)
 {
 	VM_BUG_ON(haddr & ~HPAGE_PUD_MASK);
 	VM_BUG_ON_VMA(vma->vm_start > haddr, vma);
@@ -1907,7 +1943,7 @@ static void __split_huge_pud_locked(struct vm_area_struct *vma, pud_t *pud,
 }
 
 void __split_huge_pud(struct vm_area_struct *vma, pud_t *pud,
-		unsigned long address)
+		      unsigned long address)
 {
 	spinlock_t *ptl;
 	struct mmu_notifier_range range;
@@ -1932,7 +1968,7 @@ out:
 #endif /* CONFIG_HAVE_ARCH_TRANSPARENT_HUGEPAGE_PUD */
 
 static void __split_huge_zero_page_pmd(struct vm_area_struct *vma,
-		unsigned long haddr, pmd_t *pmd)
+				       unsigned long haddr, pmd_t *pmd)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	pgtable_t pgtable;
@@ -1966,7 +2002,7 @@ static void __split_huge_zero_page_pmd(struct vm_area_struct *vma,
 }
 
 static void __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
-		unsigned long haddr, bool freeze)
+				    unsigned long haddr, bool freeze)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	struct page *page;
@@ -1979,8 +2015,8 @@ static void __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
 	VM_BUG_ON(haddr & ~HPAGE_PMD_MASK);
 	VM_BUG_ON_VMA(vma->vm_start > haddr, vma);
 	VM_BUG_ON_VMA(vma->vm_end < haddr + HPAGE_PMD_SIZE, vma);
-	VM_BUG_ON(!is_pmd_migration_entry(*pmd) && !pmd_trans_huge(*pmd)
-				&& !pmd_devmap(*pmd));
+	VM_BUG_ON(!is_pmd_migration_entry(*pmd) && !pmd_trans_huge(*pmd) &&
+		  !pmd_devmap(*pmd));
 
 	count_vm_event(THP_SPLIT_PMD);
 
@@ -2087,10 +2123,10 @@ static void __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
 			swp_entry_t swp_entry;
 			if (write)
 				swp_entry = make_writable_migration_entry(
-							page_to_pfn(page + i));
+					page_to_pfn(page + i));
 			else
 				swp_entry = make_readable_migration_entry(
-							page_to_pfn(page + i));
+					page_to_pfn(page + i));
 			entry = swp_entry_to_pte(swp_entry);
 			if (soft_dirty)
 				entry = pte_swp_mksoft_dirty(entry);
@@ -2153,7 +2189,7 @@ static void __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
 }
 
 void __split_huge_pmd(struct vm_area_struct *vma, pmd_t *pmd,
-		unsigned long address, bool freeze, struct page *page)
+		      unsigned long address, bool freeze, struct page *page)
 {
 	spinlock_t *ptl;
 	struct mmu_notifier_range range;
@@ -2232,7 +2268,7 @@ out:
 }
 
 void split_huge_pmd_address(struct vm_area_struct *vma, unsigned long address,
-		bool freeze, struct page *page)
+			    bool freeze, struct page *page)
 {
 	pgd_t *pgd;
 	p4d_t *p4d;
@@ -2256,7 +2292,8 @@ void split_huge_pmd_address(struct vm_area_struct *vma, unsigned long address,
 	__split_huge_pmd(vma, pmd, address, freeze, page);
 }
 
-static inline void split_huge_pmd_if_needed(struct vm_area_struct *vma, unsigned long address)
+static inline void split_huge_pmd_if_needed(struct vm_area_struct *vma,
+					    unsigned long address)
 {
 	/*
 	 * If the new address isn't hpage aligned and it could previously
@@ -2268,10 +2305,8 @@ static inline void split_huge_pmd_if_needed(struct vm_area_struct *vma, unsigned
 		split_huge_pmd_address(vma, address, false, NULL);
 }
 
-void vma_adjust_trans_huge(struct vm_area_struct *vma,
-			     unsigned long start,
-			     unsigned long end,
-			     long adjust_next)
+void vma_adjust_trans_huge(struct vm_area_struct *vma, unsigned long start,
+			   unsigned long end, long adjust_next)
 {
 	/* Check if we need to split start first. */
 	split_huge_pmd_if_needed(vma, start);
@@ -2293,8 +2328,8 @@ void vma_adjust_trans_huge(struct vm_area_struct *vma,
 
 static void unmap_page(struct page *page)
 {
-	enum ttu_flags ttu_flags = TTU_RMAP_LOCKED | TTU_SPLIT_HUGE_PMD |
-		TTU_SYNC;
+	enum ttu_flags ttu_flags =
+		TTU_RMAP_LOCKED | TTU_SPLIT_HUGE_PMD | TTU_SYNC;
 
 	VM_BUG_ON_PAGE(!PageHead(page), page);
 
@@ -2327,7 +2362,7 @@ static void remap_page(struct page *page, unsigned int nr)
 }
 
 static void lru_add_page_tail(struct page *head, struct page *tail,
-		struct lruvec *lruvec, struct list_head *list)
+			      struct lruvec *lruvec, struct list_head *list)
 {
 	VM_BUG_ON_PAGE(!PageHead(head), head);
 	VM_BUG_ON_PAGE(PageCompound(tail), head);
@@ -2348,7 +2383,8 @@ static void lru_add_page_tail(struct page *head, struct page *tail,
 }
 
 static void __split_huge_page_tail(struct page *head, int tail,
-		struct lruvec *lruvec, struct list_head *list)
+				   struct lruvec *lruvec,
+				   struct list_head *list)
 {
 	struct page *page_tail = head + tail;
 
@@ -2361,24 +2397,20 @@ static void __split_huge_page_tail(struct page *head, int tail,
 	 * for example lock_page() which set PG_waiters.
 	 */
 	page_tail->flags &= ~PAGE_FLAGS_CHECK_AT_PREP;
-	page_tail->flags |= (head->flags &
-			((1L << PG_referenced) |
-			 (1L << PG_swapbacked) |
-			 (1L << PG_swapcache) |
-			 (1L << PG_mlocked) |
-			 (1L << PG_uptodate) |
-			 (1L << PG_active) |
-			 (1L << PG_workingset) |
-			 (1L << PG_locked) |
-			 (1L << PG_unevictable) |
+	page_tail->flags |=
+		(head->flags & ((1L << PG_referenced) | (1L << PG_swapbacked) |
+				(1L << PG_swapcache) | (1L << PG_mlocked) |
+				(1L << PG_uptodate) | (1L << PG_active) |
+				(1L << PG_workingset) | (1L << PG_locked) |
+				(1L << PG_unevictable) |
 #ifdef CONFIG_64BIT
-			 (1L << PG_arch_2) |
+				(1L << PG_arch_2) |
 #endif
-			 (1L << PG_dirty)));
+				(1L << PG_dirty)));
 
 	/* ->mapping in first tail page is compound_mapcount */
 	VM_BUG_ON_PAGE(tail > 2 && page_tail->mapping != TAIL_MAPPING,
-			page_tail);
+		       page_tail);
 	page_tail->mapping = head->mapping;
 	page_tail->index = head->index + tail;
 
@@ -2394,8 +2426,8 @@ static void __split_huge_page_tail(struct page *head, int tail,
 	clear_compound_head(page_tail);
 
 	/* Finally unfreeze refcount. Additional reference from page cache. */
-	page_ref_unfreeze(page_tail, 1 + (!PageAnon(head) ||
-					  PageSwapCache(head)));
+	page_ref_unfreeze(page_tail,
+			  1 + (!PageAnon(head) || PageSwapCache(head)));
 
 	if (page_is_young(head))
 		set_page_young(page_tail);
@@ -2413,7 +2445,7 @@ static void __split_huge_page_tail(struct page *head, int tail,
 }
 
 static void __split_huge_page(struct page *page, struct list_head *list,
-		pgoff_t end)
+			      pgoff_t end)
 {
 	struct page *head = compound_head(page);
 	struct lruvec *lruvec;
@@ -2449,10 +2481,10 @@ static void __split_huge_page(struct page *page, struct list_head *list,
 			put_page(head + i);
 		} else if (!PageAnon(page)) {
 			__xa_store(&head->mapping->i_pages, head[i].index,
-					head + i, 0);
+				   head + i, 0);
 		} else if (swap_cache) {
-			__xa_store(&swap_cache->i_pages, offset + i,
-					head + i, 0);
+			__xa_store(&swap_cache->i_pages, offset + i, head + i,
+				   0);
 		}
 	}
 
@@ -2726,7 +2758,7 @@ int split_huge_page_to_list(struct page *page, struct list_head *list)
 		ret = 0;
 	} else {
 		spin_unlock(&ds_queue->split_queue_lock);
-fail:
+	fail:
 		if (mapping)
 			xa_unlock(&mapping->i_pages);
 		local_irq_enable();
@@ -2798,7 +2830,7 @@ void deferred_split_huge_page(struct page *page)
 }
 
 static unsigned long deferred_split_count(struct shrinker *shrink,
-		struct shrink_control *sc)
+					  struct shrink_control *sc)
 {
 	struct pglist_data *pgdata = NODE_DATA(sc->nid);
 	struct deferred_split *ds_queue = &pgdata->deferred_split_queue;
@@ -2811,7 +2843,7 @@ static unsigned long deferred_split_count(struct shrinker *shrink,
 }
 
 static unsigned long deferred_split_scan(struct shrinker *shrink,
-		struct shrink_control *sc)
+					 struct shrink_control *sc)
 {
 	struct pglist_data *pgdata = NODE_DATA(sc->nid);
 	struct deferred_split *ds_queue = &pgdata->deferred_split_queue;
@@ -2827,7 +2859,7 @@ static unsigned long deferred_split_scan(struct shrinker *shrink,
 
 	spin_lock_irqsave(&ds_queue->split_queue_lock, flags);
 	/* Take pin on all head pages to avoid freeing them under us */
-	list_for_each_safe(pos, next, &ds_queue->split_queue) {
+	list_for_each_safe (pos, next, &ds_queue->split_queue) {
 		page = list_entry((void *)pos, struct page, deferred_list);
 		page = compound_head(page);
 		if (get_page_unless_zero(page)) {
@@ -2842,7 +2874,7 @@ static unsigned long deferred_split_scan(struct shrinker *shrink,
 	}
 	spin_unlock_irqrestore(&ds_queue->split_queue_lock, flags);
 
-	list_for_each_safe(pos, next, &list) {
+	list_for_each_safe (pos, next, &list) {
 		page = list_entry((void *)pos, struct page, deferred_list);
 		if (!trylock_page(page))
 			goto next;
@@ -2850,7 +2882,7 @@ static unsigned long deferred_split_scan(struct shrinker *shrink,
 		if (!split_huge_page(page))
 			split++;
 		unlock_page(page);
-next:
+	next:
 		put_page(page);
 	}
 
@@ -2871,8 +2903,7 @@ static struct shrinker deferred_split_shrinker = {
 	.count_objects = deferred_split_count,
 	.scan_objects = deferred_split_scan,
 	.seeks = DEFAULT_SEEKS,
-	.flags = SHRINKER_NUMA_AWARE | SHRINKER_MEMCG_AWARE |
-		 SHRINKER_NONSLAB,
+	.flags = SHRINKER_NUMA_AWARE | SHRINKER_MEMCG_AWARE | SHRINKER_NONSLAB,
 };
 
 #ifdef CONFIG_DEBUG_FS
@@ -2884,7 +2915,7 @@ static void split_huge_pages_all(void)
 	unsigned long total = 0, split = 0;
 
 	pr_debug("Split all THPs\n");
-	for_each_populated_zone(zone) {
+	for_each_populated_zone (zone) {
 		max_zone_pfn = zone_end_pfn(zone);
 		for (pfn = zone->zone_start_pfn; pfn < max_zone_pfn; pfn++) {
 			if (!pfn_valid(pfn))
@@ -2905,7 +2936,7 @@ static void split_huge_pages_all(void)
 			if (!split_huge_page(page))
 				split++;
 			unlock_page(page);
-next:
+		next:
 			put_page(page);
 			cond_resched();
 		}
@@ -2917,7 +2948,7 @@ next:
 static inline bool vma_not_suitable_for_thp_split(struct vm_area_struct *vma)
 {
 	return vma_is_special_huge(vma) || (vma->vm_flags & VM_IO) ||
-		    is_vm_hugetlb_page(vma);
+	       is_vm_hugetlb_page(vma);
 }
 
 static int split_huge_pages_pid(int pid, unsigned long vaddr_start,
@@ -2952,8 +2983,8 @@ static int split_huge_pages_pid(int pid, unsigned long vaddr_start,
 		goto out;
 	}
 
-	pr_debug("Split huge pages in pid: %d, vaddr: [0x%lx - 0x%lx]\n",
-		 pid, vaddr_start, vaddr_end);
+	pr_debug("Split huge pages in pid: %d, vaddr: [0x%lx - 0x%lx]\n", pid,
+		 vaddr_start, vaddr_end);
 
 	mmap_read_lock(mm);
 	/*
@@ -2997,7 +3028,7 @@ static int split_huge_pages_pid(int pid, unsigned long vaddr_start,
 			split++;
 
 		unlock_page(page);
-next:
+	next:
 		put_page(page);
 		cond_resched();
 	}
@@ -3011,7 +3042,7 @@ out:
 }
 
 static int split_huge_pages_in_file(const char *file_path, pgoff_t off_start,
-				pgoff_t off_end)
+				    pgoff_t off_end)
 {
 	struct filename *file;
 	struct file *candidate;
@@ -3029,14 +3060,15 @@ static int split_huge_pages_in_file(const char *file_path, pgoff_t off_start,
 	if (IS_ERR(candidate))
 		goto out;
 
-	pr_debug("split file-backed THPs in file: %s, page offset: [0x%lx - 0x%lx]\n",
-		 file_path, off_start, off_end);
+	pr_debug(
+		"split file-backed THPs in file: %s, page offset: [0x%lx - 0x%lx]\n",
+		file_path, off_start, off_end);
 
 	mapping = candidate->f_mapping;
 
 	for (index = off_start; index < off_end; index += nr_pages) {
-		struct page *fpage = pagecache_get_page(mapping, index,
-						FGP_ENTRY | FGP_HEAD, 0);
+		struct page *fpage = pagecache_get_page(
+			mapping, index, FGP_ENTRY | FGP_HEAD, 0);
 
 		nr_pages = 1;
 		if (xa_is_value(fpage) || !fpage)
@@ -3055,7 +3087,7 @@ static int split_huge_pages_in_file(const char *file_path, pgoff_t off_start,
 			split++;
 
 		unlock_page(fpage);
-next:
+	next:
 		put_page(fpage);
 		cond_resched();
 	}
@@ -3072,7 +3104,7 @@ out:
 #define MAX_INPUT_BUF_SZ 255
 
 static ssize_t split_huge_pages_write(struct file *file, const char __user *buf,
-				size_t count, loff_t *ppops)
+				      size_t count, loff_t *ppops)
 {
 	static DEFINE_MUTEX(split_debug_mutex);
 	ssize_t ret;
@@ -3088,7 +3120,8 @@ static ssize_t split_huge_pages_write(struct file *file, const char __user *buf,
 	ret = -EFAULT;
 
 	memset(input_buf, 0, MAX_INPUT_BUF_SZ);
-	if (copy_from_user(input_buf, buf, min_t(size_t, count, MAX_INPUT_BUF_SZ)))
+	if (copy_from_user(input_buf, buf,
+			   min_t(size_t, count, MAX_INPUT_BUF_SZ)))
 		goto out;
 
 	input_buf[MAX_INPUT_BUF_SZ - 1] = '\0';
@@ -3120,7 +3153,8 @@ static ssize_t split_huge_pages_write(struct file *file, const char __user *buf,
 		goto out;
 	}
 
-	ret = sscanf(input_buf, "%d,0x%lx,0x%lx", &pid, &vaddr_start, &vaddr_end);
+	ret = sscanf(input_buf, "%d,0x%lx,0x%lx", &pid, &vaddr_start,
+		     &vaddr_end);
 	if (ret == 1 && pid == 1) {
 		split_huge_pages_all();
 		ret = strlen(input_buf);
@@ -3136,13 +3170,12 @@ static ssize_t split_huge_pages_write(struct file *file, const char __user *buf,
 out:
 	mutex_unlock(&split_debug_mutex);
 	return ret;
-
 }
 
 static const struct file_operations split_huge_pages_fops = {
-	.owner	 = THIS_MODULE,
-	.write	 = split_huge_pages_write,
-	.llseek  = no_llseek,
+	.owner = THIS_MODULE,
+	.write = split_huge_pages_write,
+	.llseek = no_llseek,
 };
 
 static int __init split_huge_pages_debugfs(void)
@@ -3156,7 +3189,7 @@ late_initcall(split_huge_pages_debugfs);
 
 #ifdef CONFIG_ARCH_ENABLE_THP_MIGRATION
 void set_pmd_migration_entry(struct page_vma_mapped_walk *pvmw,
-		struct page *page)
+			     struct page *page)
 {
 	struct vm_area_struct *vma = pvmw->vma;
 	struct mm_struct *mm = vma->vm_mm;
