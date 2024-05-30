@@ -34,14 +34,11 @@
 #include <asm/tlbflush.h>
 
 #include "internal.h"
-/*
- TPP补丁0：修改change_pte_range函数
-*/
 
-//
+// TPP补丁2：修改change_pte_range函数
 static unsigned long change_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
-		unsigned long addr, unsigned long end, pgprot_t newprot,
-		unsigned long cp_flags)
+				      unsigned long addr, unsigned long end,
+				      pgprot_t newprot, unsigned long cp_flags)
 {
 	pte_t *pte, oldpte;
 	spinlock_t *ptl;
@@ -49,7 +46,7 @@ static unsigned long change_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 	int target_node = NUMA_NO_NODE;
 	bool dirty_accountable = cp_flags & MM_CP_DIRTY_ACCT;
 	bool prot_numa = cp_flags & MM_CP_PROT_NUMA;
-	bool uffd_wp = cp_flags & MM_CP_UFFD_WP;
+	bool uffd_wp = cp_flags & MM_CP_UFFD_WP;//这个是什么？
 	bool uffd_wp_resolve = cp_flags & MM_CP_UFFD_WP_RESOLVE;
 
 	/*
@@ -69,12 +66,15 @@ static unsigned long change_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 	pte = pte_offset_map_lock(vma->vm_mm, pmd, addr, &ptl);
 
 	/* Get target node for single threaded private VMAs */
+	//启动了NUMA优化、vma是私有的、仅被一个进程使用
 	if (prot_numa && !(vma->vm_flags & VM_SHARED) &&
 	    atomic_read(&vma->vm_mm->mm_users) == 1)
-		target_node = numa_node_id();
+		target_node = numa_node_id(); //当前CPU所在的NUMA节点
+	//当前进程的内存管理将被优化，将内存页分配在CPU所在NUMA节点上
 
 	flush_tlb_batched_pending(vma->vm_mm);
 	arch_enter_lazy_mmu_mode();
+
 	do {
 		oldpte = *pte;
 		if (pte_present(oldpte)) {
@@ -87,16 +87,21 @@ static unsigned long change_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 			 */
 			if (prot_numa) {
 				struct page *page;
-				int nid;
+				int nid; //TPP补丁修改
 
 				/* Avoid TLB flush if possible */
+				//如果旧页没有任何保护，跳过当前迭代
 				if (pte_protnone(oldpte))
 					continue;
 
+				//获取该页，该页不存在或者时内核共享，跳过迭代
 				page = vm_normal_page(vma, addr, oldpte);
+				//unsigned long pfn = pte_pfn(pte);
+				//pfn_to_page(pfn)
 				if (!page || PageKsm(page))
 					continue;
 
+				//共享的写复制页面，也跳过
 				/* Also skip shared copy-on-write pages */
 				if (is_cow_mapping(vma->vm_flags) &&
 				    page_mapcount(page) != 1)
@@ -107,6 +112,7 @@ static unsigned long change_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 				 * it cannot move them all from MIGRATE_ASYNC
 				 * context.
 				 */
+				//如果页面时file并且是脏页，跳过
 				if (page_is_file_lru(page) && PageDirty(page))
 					continue;
 
@@ -114,17 +120,18 @@ static unsigned long change_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 				 * Don't mess with PTEs if page is already on the node
 				 * a single-threaded process is running on.
 				 */
-				nid = page_to_nid(page);
+				nid = page_to_nid(page); //获取当前页的numa节点
 				if (target_node == nid)
 					continue;
 
 				/* skip scanning toptier node */
 				if (numa_promotion_tiered_enabled && node_is_toptier(nid))
 					continue;
+				//TPP添加
 			}
 
 			oldpte = ptep_modify_prot_start(vma, addr, pte);
-			ptent = pte_modify(oldpte, newprot);
+			ptent = pte_modify(oldpte, newprot);//更改权限
 			if (preserve_write)
 				ptent = pte_mk_savedwrite(ptent);
 
@@ -142,14 +149,15 @@ static unsigned long change_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 			}
 
 			/* Avoid taking write faults for known dirty pages */
-			if (dirty_accountable && pte_dirty(ptent) &&
-					(pte_soft_dirty(ptent) ||
-					 !(vma->vm_flags & VM_SOFTDIRTY))) {
+			if (dirty_accountable && pte_dirty(ptent) && (pte_soft_dirty(ptent) || !(vma->vm_flags & VM_SOFTDIRTY))) 
+			{
 				ptent = pte_mkwrite(ptent);
 			}
-			ptep_modify_prot_commit(vma, addr, pte, oldpte, ptent);
+
+			ptep_modify_prot_commit(vma, addr, pte, oldpte, ptent);//提交更改
 			pages++;
-		} else if (is_swap_pte(oldpte)) {
+		} 
+		else if (is_swap_pte(oldpte)) { //如果已经被换出
 			swp_entry_t entry = pte_to_swp_entry(oldpte);
 			pte_t newpte;
 
@@ -159,7 +167,7 @@ static unsigned long change_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 				 * just be safe and disable write
 				 */
 				entry = make_readable_migration_entry(
-							swp_offset(entry));
+					swp_offset(entry));
 				newpte = swp_entry_to_pte(entry);
 				if (pte_swp_soft_dirty(oldpte))
 					newpte = pte_swp_mksoft_dirty(newpte);
@@ -171,13 +179,13 @@ static unsigned long change_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 				 * copy_one_pte() for explanation.
 				 */
 				entry = make_readable_device_private_entry(
-							swp_offset(entry));
+					swp_offset(entry));
 				newpte = swp_entry_to_pte(entry);
 				if (pte_swp_uffd_wp(oldpte))
 					newpte = pte_swp_mkuffd_wp(newpte);
 			} else if (is_writable_device_exclusive_entry(entry)) {
 				entry = make_readable_device_exclusive_entry(
-							swp_offset(entry));
+					swp_offset(entry));
 				newpte = swp_entry_to_pte(entry);
 				if (pte_swp_soft_dirty(oldpte))
 					newpte = pte_swp_mksoft_dirty(newpte);
@@ -198,6 +206,7 @@ static unsigned long change_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 			}
 		}
 	} while (pte++, addr += PAGE_SIZE, addr != end);
+
 	arch_leave_lazy_mmu_mode();
 	pte_unmap_unlock(pte - 1, ptl);
 
@@ -229,9 +238,9 @@ static inline int pmd_none_or_clear_bad_unless_trans_huge(pmd_t *pmd)
 	return 0;
 }
 
-static inline unsigned long change_pmd_range(struct vm_area_struct *vma,
-		pud_t *pud, unsigned long addr, unsigned long end,
-		pgprot_t newprot, unsigned long cp_flags)
+static inline unsigned long
+change_pmd_range(struct vm_area_struct *vma, pud_t *pud, unsigned long addr,
+		 unsigned long end, pgprot_t newprot, unsigned long cp_flags)
 {
 	pmd_t *pmd;
 	unsigned long next;
@@ -256,23 +265,24 @@ static inline unsigned long change_pmd_range(struct vm_area_struct *vma,
 		 * for all the checks.
 		 */
 		if (!is_swap_pmd(*pmd) && !pmd_devmap(*pmd) &&
-		     pmd_none_or_clear_bad_unless_trans_huge(pmd))
+		    pmd_none_or_clear_bad_unless_trans_huge(pmd))
 			goto next;
 
 		/* invoke the mmu notifier if the pmd is populated */
 		if (!range.start) {
 			mmu_notifier_range_init(&range,
-				MMU_NOTIFY_PROTECTION_VMA, 0,
-				vma, vma->vm_mm, addr, end);
+						MMU_NOTIFY_PROTECTION_VMA, 0,
+						vma, vma->vm_mm, addr, end);
 			mmu_notifier_invalidate_range_start(&range);
 		}
 
-		if (is_swap_pmd(*pmd) || pmd_trans_huge(*pmd) || pmd_devmap(*pmd)) {
+		if (is_swap_pmd(*pmd) || pmd_trans_huge(*pmd) ||
+		    pmd_devmap(*pmd)) {
 			if (next - addr != HPAGE_PMD_SIZE) {
 				__split_huge_pmd(vma, pmd, addr, false, NULL);
 			} else {
-				int nr_ptes = change_huge_pmd(vma, pmd, addr,
-							      newprot, cp_flags);
+				int nr_ptes = change_huge_pmd(
+					vma, pmd, addr, newprot, cp_flags);
 
 				if (nr_ptes) {
 					if (nr_ptes == HPAGE_PMD_NR) {
@@ -289,7 +299,7 @@ static inline unsigned long change_pmd_range(struct vm_area_struct *vma,
 		this_pages = change_pte_range(vma, pmd, addr, next, newprot,
 					      cp_flags);
 		pages += this_pages;
-next:
+	next:
 		cond_resched();
 	} while (pmd++, addr = next, addr != end);
 
@@ -301,9 +311,9 @@ next:
 	return pages;
 }
 
-static inline unsigned long change_pud_range(struct vm_area_struct *vma,
-		p4d_t *p4d, unsigned long addr, unsigned long end,
-		pgprot_t newprot, unsigned long cp_flags)
+static inline unsigned long
+change_pud_range(struct vm_area_struct *vma, p4d_t *p4d, unsigned long addr,
+		 unsigned long end, pgprot_t newprot, unsigned long cp_flags)
 {
 	pud_t *pud;
 	unsigned long next;
@@ -321,9 +331,9 @@ static inline unsigned long change_pud_range(struct vm_area_struct *vma,
 	return pages;
 }
 
-static inline unsigned long change_p4d_range(struct vm_area_struct *vma,
-		pgd_t *pgd, unsigned long addr, unsigned long end,
-		pgprot_t newprot, unsigned long cp_flags)
+static inline unsigned long
+change_p4d_range(struct vm_area_struct *vma, pgd_t *pgd, unsigned long addr,
+		 unsigned long end, pgprot_t newprot, unsigned long cp_flags)
 {
 	p4d_t *p4d;
 	unsigned long next;
@@ -343,8 +353,10 @@ static inline unsigned long change_p4d_range(struct vm_area_struct *vma,
 
 //
 static unsigned long change_protection_range(struct vm_area_struct *vma,
-		unsigned long addr, unsigned long end, pgprot_t newprot,
-		unsigned long cp_flags)
+					     unsigned long addr,
+					     unsigned long end,
+					     pgprot_t newprot,
+					     unsigned long cp_flags)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	pgd_t *pgd;
@@ -373,8 +385,8 @@ static unsigned long change_protection_range(struct vm_area_struct *vma,
 }
 
 unsigned long change_protection(struct vm_area_struct *vma, unsigned long start,
-		       unsigned long end, pgprot_t newprot,
-		       unsigned long cp_flags)
+				unsigned long end, pgprot_t newprot,
+				unsigned long cp_flags)
 {
 	unsigned long pages;
 
@@ -393,7 +405,8 @@ static int prot_none_pte_entry(pte_t *pte, unsigned long addr,
 			       unsigned long next, struct mm_walk *walk)
 {
 	return pfn_modify_allowed(pte_pfn(*pte), *(pgprot_t *)(walk->private)) ?
-		0 : -EACCES;
+		       0 :
+		       -EACCES;
 }
 
 static int prot_none_hugetlb_entry(pte_t *pte, unsigned long hmask,
@@ -401,7 +414,8 @@ static int prot_none_hugetlb_entry(pte_t *pte, unsigned long hmask,
 				   struct mm_walk *walk)
 {
 	return pfn_modify_allowed(pte_pfn(*pte), *(pgprot_t *)(walk->private)) ?
-		0 : -EACCES;
+		       0 :
+		       -EACCES;
 }
 
 static int prot_none_test(unsigned long addr, unsigned long next,
@@ -411,14 +425,15 @@ static int prot_none_test(unsigned long addr, unsigned long next,
 }
 
 static const struct mm_walk_ops prot_none_walk_ops = {
-	.pte_entry		= prot_none_pte_entry,
-	.hugetlb_entry		= prot_none_hugetlb_entry,
-	.test_walk		= prot_none_test,
+	.pte_entry = prot_none_pte_entry,
+	.hugetlb_entry = prot_none_hugetlb_entry,
+	.test_walk = prot_none_test,
 };
 
 //重要函数
 int mprotect_fixup(struct vm_area_struct *vma, struct vm_area_struct **pprev,
-	unsigned long start, unsigned long end, unsigned long newflags)
+		   unsigned long start, unsigned long end,
+		   unsigned long newflags)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	unsigned long oldflags = vma->vm_flags;
@@ -439,12 +454,12 @@ int mprotect_fixup(struct vm_area_struct *vma, struct vm_area_struct **pprev,
 	 * uncommon case, so doesn't need to be very optimized.
 	 */
 	if (arch_has_pfn_modify_check() &&
-	    (vma->vm_flags & (VM_PFNMAP|VM_MIXEDMAP)) &&
+	    (vma->vm_flags & (VM_PFNMAP | VM_MIXEDMAP)) &&
 	    (newflags & VM_ACCESS_FLAGS) == 0) {
 		pgprot_t new_pgprot = vm_get_page_prot(newflags);
 
 		error = walk_page_range(current->mm, start, end,
-				&prot_none_walk_ops, &new_pgprot);
+					&prot_none_walk_ops, &new_pgprot);
 		if (error)
 			return error;
 	}
@@ -458,10 +473,10 @@ int mprotect_fixup(struct vm_area_struct *vma, struct vm_area_struct **pprev,
 	if (newflags & VM_WRITE) {
 		/* Check space limits when area turns into data. */
 		if (!may_expand_vm(mm, newflags, nrpages) &&
-				may_expand_vm(mm, oldflags, nrpages))
+		    may_expand_vm(mm, oldflags, nrpages))
 			return -ENOMEM;
-		if (!(oldflags & (VM_ACCOUNT|VM_WRITE|VM_HUGETLB|
-						VM_SHARED|VM_NORESERVE))) {
+		if (!(oldflags & (VM_ACCOUNT | VM_WRITE | VM_HUGETLB |
+				  VM_SHARED | VM_NORESERVE))) {
 			charged = nrpages;
 			if (security_vm_enough_memory_mm(mm, charged))
 				return -ENOMEM;
@@ -473,8 +488,8 @@ int mprotect_fixup(struct vm_area_struct *vma, struct vm_area_struct **pprev,
 	 * First try to merge with previous and/or next vma.
 	 */
 	pgoff = vma->vm_pgoff + ((start - vma->vm_start) >> PAGE_SHIFT);
-	*pprev = vma_merge(mm, *pprev, start, end, newflags,
-			   vma->anon_vma, vma->vm_file, pgoff, vma_policy(vma),
+	*pprev = vma_merge(mm, *pprev, start, end, newflags, vma->anon_vma,
+			   vma->vm_file, pgoff, vma_policy(vma),
 			   vma->vm_userfaultfd_ctx);
 	if (*pprev) {
 		vma = *pprev;
@@ -513,7 +528,7 @@ success:
 	 * fault on access.
 	 */
 	if ((oldflags & (VM_WRITE | VM_SHARED | VM_LOCKED)) == VM_LOCKED &&
-			(newflags & VM_WRITE)) {
+	    (newflags & VM_WRITE)) {
 		populate_vma_page_range(vma, start, end, NULL);
 	}
 
@@ -528,21 +543,20 @@ fail:
 }
 
 //pkey==-1 when doing a legacy mprotect()
-//
-static int do_mprotect_pkey(unsigned long start, size_t len,
-		unsigned long prot, int pkey)
+static int do_mprotect_pkey(unsigned long start, size_t len, unsigned long prot,
+			    int pkey)
 {
 	unsigned long nstart, end, tmp, reqprot;
 	struct vm_area_struct *vma, *prev;
 	int error = -EINVAL;
-	const int grows = prot & (PROT_GROWSDOWN|PROT_GROWSUP);
+	const int grows = prot & (PROT_GROWSDOWN | PROT_GROWSUP);
 	const bool rier = (current->personality & READ_IMPLIES_EXEC) &&
-				(prot & PROT_READ);
+			  (prot & PROT_READ);
 
 	start = untagged_addr(start);
 
-	prot &= ~(PROT_GROWSDOWN|PROT_GROWSUP);
-	if (grows == (PROT_GROWSDOWN|PROT_GROWSUP)) /* can't be both */
+	prot &= ~(PROT_GROWSDOWN | PROT_GROWSUP);
+	if (grows == (PROT_GROWSDOWN | PROT_GROWSUP)) /* can't be both */
 		return -EINVAL;
 
 	if (start & ~PAGE_MASK)
@@ -594,7 +608,7 @@ static int do_mprotect_pkey(unsigned long start, size_t len,
 	if (start > vma->vm_start)
 		prev = vma;
 
-	for (nstart = start ; ; ) {
+	for (nstart = start;;) {
 		unsigned long mask_off_old_flags;
 		unsigned long newflags;
 		int new_vma_pkey;
@@ -610,8 +624,8 @@ static int do_mprotect_pkey(unsigned long start, size_t len,
 		 * If a permission is not passed to mprotect(), it must be
 		 * cleared from the VMA.
 		 */
-		mask_off_old_flags = VM_READ | VM_WRITE | VM_EXEC |
-					VM_FLAGS_CLEAR;
+		mask_off_old_flags =
+			VM_READ | VM_WRITE | VM_EXEC | VM_FLAGS_CLEAR;
 
 		new_vma_pkey = arch_override_mprotect_pkey(vma, prot, pkey);
 		newflags = calc_vm_prot_bits(prot, new_vma_pkey);
@@ -638,7 +652,8 @@ static int do_mprotect_pkey(unsigned long start, size_t len,
 			tmp = end;
 
 		if (vma->vm_ops && vma->vm_ops->mprotect) {
-			error = vma->vm_ops->mprotect(vma, nstart, tmp, newflags);
+			error = vma->vm_ops->mprotect(vma, nstart, tmp,
+						      newflags);
 			if (error)
 				goto out;
 		}
@@ -666,8 +681,8 @@ out:
 	return error;
 }
 
-SYSCALL_DEFINE3(mprotect, unsigned long, start, size_t, len,
-		unsigned long, prot)
+SYSCALL_DEFINE3(mprotect, unsigned long, start, size_t, len, unsigned long,
+		prot)
 {
 	return do_mprotect_pkey(start, len, prot, -1);
 }
@@ -675,8 +690,8 @@ SYSCALL_DEFINE3(mprotect, unsigned long, start, size_t, len,
 //CXL服务器设置了
 #ifdef CONFIG_ARCH_HAS_PKEYS
 
-SYSCALL_DEFINE4(pkey_mprotect, unsigned long, start, size_t, len,
-		unsigned long, prot, int, pkey)
+SYSCALL_DEFINE4(pkey_mprotect, unsigned long, start, size_t, len, unsigned long,
+		prot, int, pkey)
 {
 	return do_mprotect_pkey(start, len, prot, pkey);
 }
